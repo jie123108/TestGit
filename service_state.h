@@ -15,7 +15,7 @@ class ServiceState {
  public:
   ServiceState();
   virtual ~ServiceState();
-asdfsadf
+
   void Reset();
 
   // Initialize object from json.
