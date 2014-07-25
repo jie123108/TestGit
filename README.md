@@ -1,5 +1,5 @@
 #nginx 统计模块。
-<a href="#" onclick="javascript:alert('test click!');"> ngx_req_stat</a>是一个nginx状态统计模块，其统计项是可配置的，并且可以统计不同的虚拟主机，不同的URL。可以统计的包括请求次数，各个状态码的次数，不同的时间段的次数。输出的流量累计信息，平均处理时间等等。
+<a href="#"> ngx_req_stat</a>是一个nginx状态统计模块，其统计项是可配置的，并且可以统计不同的虚拟主机，不同的URL。可以统计的包括请求次数，各个状态码的次数，不同的时间段的次数。输出的流量累计信息，平均处理时间等等。
 
 统计信息最终存储在mongodb中。使用mongodb进行统计信息存储，是因为mongodb支持下面的操作语句：
 ```bash
@@ -34,6 +34,11 @@ tar -xvf json-c-0.11.tar.gz
 ./configure --prefix=/usr
 make && make install
 ```
+<table border="1" bordercolor="#00FF00" cellspacing="2">
+<tr  bgcolor="#FF0000"><td>标题</td><td>作者</td></tr>
+<tr bgcolor="#CCCCCC"><td>我的大学</td><td>林心洁</td></tr>
+
+</table>
 
 联系作者:
 =====
