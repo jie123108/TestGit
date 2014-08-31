@@ -1,6 +1,12 @@
-# Name  
+# Name 
+
   ngx_request_status是一个nginx状态统计模块，其统计项是可配置的，并且可以统计不同的虚拟主机，不同的URL。可以统计的包括请求次数，各个状态码的次数，输出的流量累计信息，平均处理时间等等。
  代码中的ngx_shmap.c及ngx_shmap.h拷贝自项目：https://github.com/jie123108/ngx_shmap，可以独立使用。
+
+# Table of Contents
+
+* [Synopsis](#Synopsis)
+* [Nginx Compatibility] (#nginx-compatibility)
 
 # Synopsis
 ```nginx
@@ -82,6 +88,11 @@ http {
 
 # Nginx Compatibility
 The latest module is compatible with the following versions of Nginx:
+* 1.7.x (last tested: 1.7.4)
+* 1.6.x (last tested: 1.6.1)
+* 1.4.x (last tested: 1.4.7)
+* 1.2.x (last tested: 1.2.9)
+* 1.0.x (last tested: 1.0.15)
 
 
 # Module Compile
@@ -365,6 +376,7 @@ pc          1       182     205     0
 
 本测试对应配置在Synopsis一节中。
 测试依赖于curl命令，请确认你的系统已经安装curl命令行。
+源代码目录下的[test.sh](#test.sh)
 ```bash
 for ((i=0;i<20;i++));do
 curl http://127.0.0.1:81/$RANDOM
