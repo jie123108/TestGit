@@ -5,8 +5,19 @@
 
 # Table of Contents
 
-* [Synopsis](#Synopsis)
+* [Synopsis](#synopsis)
 * [Nginx Compatibility] (#nginx-compatibility)
+* [Module Compile] (#module-compile)
+* [Module Variables](#module-variables)
+* [Directives](#directives)
+* [Statistical query](#statistical-query)
+	* [文本格式](#文本格式)
+	* [html格式](#html格式)
+ 	* [json格式](#json格式)
+	* [查询并且将查询项清零](#查询并且将查询项清零)
+	* [查询某一个统计项](#查询某一个统计项)
+* [作用域说明](#作用域说明)
+* [简单脚本测试](#简单脚本测试)
 
 # Synopsis
 ```nginx
@@ -105,7 +116,7 @@ make
 make install
 ```
 
-#支持的变量#
+# Module Variables
 * nginx_core模块支持的变量：http://nginx.org/en/docs/http/ngx_http_core_module.html#variables
 * 本模块变量
     * uri_full 重定向之前的uri。
@@ -209,7 +220,7 @@ location /status {
 ```
 统计查询请见[统计查询](#统计查询)一节
 
-统计查询
+Statistical query
 --------------
 &nbsp;&nbsp;配置好request_status_query后，就可以通过相应的uri访问统计结果，比如上节配置中，访问
 http://192.168.1.201/status 就可以显示相关统计信息。**192.168.1.201是我的主机**
@@ -224,7 +235,8 @@ http://192.168.1.201/status 就可以显示相关统计信息。**192.168.1.201是我的主机**
 
 &nbsp;&nbsp;**以下所有查询结果都是在运行[简单脚本测试](#简单脚本测试)一节中的测试脚本后产生的。**
 
-#### 文本格式：http://192.168.1.201/status
+#### 文本格式
+http://192.168.1.201/status
 ```bash
 # Optional parameters:
 # clean=true, query statistics and set the all query data to zero in the share memory.
@@ -249,10 +261,12 @@ uri:/byuri/25507	1	169	186	0	 200:1
 uri:/byuri/10608	1	169	186	0	 200:1
 ...
 ```
-#### html格式(渲染后)：http://192.168.1.201/status?fmt=html
+#### html格式
+http://192.168.1.201/status?fmt=html
 ![查询界面](view_html.png)
 
-#### json格式：http://192.168.1.201/status?fmt=json
+#### json格式
+http://192.168.1.201/status?fmt=json
 ```json
 {"Optional parameters":{
 "clean":"clean=true, query statistics and set the all query data to zero in the share memory.",
@@ -282,10 +296,11 @@ uri:/byuri/10608	1	169	186	0	 200:1
 }
 }
 ```
-#### 查询并且将查询项清零：http://192.168.1.201/status?clean=true
+#### 查询并且将查询项清零
+http://192.168.1.201/status?clean=true
 使用clean=true参数后，本次查询结果依然正常显示，只是所有结果项会被清零。
 
-#### 查询某一个统计项：
+#### 查询某一个统计项
 * http://192.168.1.201/status?stat_name=statby_headerin
 
 ```text
