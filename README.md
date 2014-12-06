@@ -3,6 +3,9 @@
    
    本模块包含一个将文本格式的地理位置信息编译成二进制数据的编译器。模块运行时直接使用二进制数据，并且采用mmap方式加载文件，不需要任何解析过程。
 
+# English Version Of Readme 
+[Here](#README-en.md)
+
 # Table of Contents
 * [完整示例](#synopsis)
 * [Nginx兼容性](#compatibility)
