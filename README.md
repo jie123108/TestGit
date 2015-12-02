@@ -1,251 +1,239 @@
-﻿# Nginx mmap geo module
-   ngx_geo_mod 是一个地理位置信息查询模块。其根据客户端IP查询出对应的省份，城市，ISP信息，写入请求头。
-   
-   本模块包含一个将文本格式的地理位置信息编译成二进制数据的编译器。模块运行时直接使用二进制数据，并且采用mmap方式加载文件，不需要任何解析过程。
+Name
+====
 
-[English Version Of Readme](README-en.md)
+lua-resty-bloomd -  Is a ngx_lua client library to interface with bloomd servers(https://github.com/armon/bloomd)
 
-# Table of Contents
-* [完整示例](#synopsis)
-* [Nginx兼容性](#compatibility)
-* [模块编译](#installation)
-* [编译GEO编译器](#compile-the-geo-compiler)
-* [模块指令](#directives)
-    * [geodata_file](#geodata_file)
-    * [mm_geo](#mm_geo)
-    * [ip_from_url](#ip_from_url)
-    * [ip_from_head](#ip_from_head)
-    * [proxies](#proxies)
-    * [proxies_recursive](#proxies_recursive)
-* [获取IP的方式](#gets-the-ip-order)
-* [变量的使用](#variable-usage)
-* [编译器的使用](#compile-geo-data-file)
-    * [数据文件格式](#geo-data-file-format)
-    * [编译数据文件](#compile-data-file)
-    * [使用geot测试二进制GEO文件](#test-binary-geo-data-file-by-geot)
+Table of Contents
+=================
 
-# Synopsis
-```nginx
-http {
-    include       mime.types;
-    default_type  application/octet-stream;
+* [Name](#name)
+* [Status](#status)
+* [Synopsis](#synopsis)
+* [Methods](#methods)
+    * [new](#new)
+* [Installation](#installation)
+* [Authors](#authors)
+* [Copyright and License](#copyright-and-license)
 
-    # set the data file path
-    geodata_file /root/work/GitHub/ngx_geo_mod/top20.geo;
-    # Get the IP address from the URL, only for testing.
-    ip_from_url on;
-    # Get the IP address from the request header, set to on when front-end have proxy.
-    ip_from_head on;
-    # Set the trusted proxy address. when the ip_from_head is true to used
-    proxies 127.0.0.1/24;
-    proxies_recursive on;
+Status
+======
 
-    # used variables in access log.
-    log_format  main  '$remote_addr@$http_x_province $http_x_city '
-                      '$http_x_isp [$time_local] "$request" '
-                      '$status $body_bytes_sent "$http_referer" '
-                      '"$http_user_agent" "$http_x_forwarded_for"';
-    access_log  logs/access.log  main;
+This library is production ready.
 
-    # Use the geo 
-	mm_geo on;
+Synopsis
+========
+```lua
+    lua_package_path "/path/to/lua-resty-bloomd/lib/?.lua;;";
+
     server {
-        listen       80;
-        server_name  localhost;
-        location /area {
-            # used variables in module
-        	echo "      ip: $http_x_ip";
-        	echo "province: $http_x_province";
-        	echo "    city: $http_x_city";
-        	echo "     isp: $http_x_isp";
-        }
+        location /test {
+            content_by_lua '
+            local bloomd = require("resty.bloomd")
+            
+            local function debug(name, ok, err)
+            	ngx.say(string.format("%15s -- ok: %5s, err: %s", name, tostring(ok), tostring(err)))
+            end
+            -- create a new instance and connect to the bloomd(127.0.0.1:8673)
+            local bloom = bloomd:new("127.0.0.1", 8673, 2000)
+            local function test_main()
+            	local capacity = 100001
+            	local probability = 0.001
+            	-- create a filter named 'my_filter'
+            	local ok, err = bloom:create("my_filter", capacity, probability)
+            	debug("create-new", ok, err)
+            	assert(ok == true)
+            	-- assert(err == "Done", "err ~= 'Done'")
+            
+            	-- create a filter, the name is exist
+            	local ok, err = bloom:create("my_filter", capacity, probability)
+            	debug("create-exist", ok, err)
+            	assert(ok == true)
+            	assert(err == "Exists")
+            
+            	-- set a key, New
+            	local ok, err = bloom:set("my_filter", 'my_key')
+            	debug("set-new", ok, err)
+            	assert(ok==true)
+            	assert(err == "Yes")
+            
+            	-- set a key, Exist
+            	local ok, err = bloom:set("my_filter", 'my_key')
+            	debug("set-exist", ok, err)
+            	assert(ok==true)
+            	assert(err == "No")
+            
+            	-- check a key, Exist
+            	local ok, err = bloom:check("my_filter", 'my_key')
+            	debug("check-exist", ok, err)
+            	assert(ok==true)
+            	assert(err == "Yes")
+            
+            	-- check a key, Not Exist
+            	local ok, err = bloom:check("my_filter", 'this_key_not_exist')
+            	debug("check-not-exist", ok, err)
+            	assert(ok==true)
+            	assert(err == "No")
+            
+            	-- flush a filter
+            	local ok, err = bloom:flush("my_filter")
+            	debug("flush", ok, err)
+            	assert(ok==true)
+            	assert(err == "Done")
+            
+            	-- close a bloom filter
+            	local ok, err = bloom:close("my_filter")
+            	debug("close", ok, err)
+            	assert(ok==true)
+            	assert(err == "Done")
+            
+            	-- check a key, Exist
+            	local ok, err = bloom:check("my_filter", 'my_key')
+            	debug("check-exist", ok, err)
+            	assert(ok==true)
+            	assert(err == "Yes")
+            
+            
+            	bloom:create("my_filter3", capacity, 0.001)
+            	-- list all filter
+            	local ok, filters = bloom:list("my_filter")
+            	debug("list", ok, filters)
+            	assert(ok==true)
+            	assert(type(filters)=='table' and #filters==2)
+            	for _,filter in ipairs(filters) do 
+            		if filter.name == "my_filter" then 
+            			assert(filter.size == 1)
+            		end            		
+            	end
+            	bloom:drop('my_filter3')
+            
+            	-- Set many items in a filter at once(bulk command)
+            	local ok, status = bloom:sets("my_filter", {"a", "b", "c"})
+            	assert(ok)
+            	assert(type(status)=='table')
+            	err = table.concat(status, ' ')
+            	debug("sets", ok, err)
+            	assert(err == "Yes Yes Yes")
+            
+            	local ok, status = bloom:sets("my_filter", {"a", "b", "d"})
+            	assert(ok)
+            	assert(type(status)=='table')
+            	err = table.concat(status, ' ')
+            	debug("sets", ok, err)
+            	assert(err == "No No Yes")
+            
+            	-- Checks if a list of keys are in a filter
+            	local ok, status = bloom:checks("my_filter", {"a", "x", "c", "d", "e"})
+            	assert(ok)
+            	assert(type(status)=='table')
+            	err = table.concat(status, ' ')
+            	debug("checks", ok, err)
+            	assert(err == "Yes No Yes Yes No")
+            
+            
+            	-- Gets info about a filter
+            	local ok, info = bloom:info("my_filter")
+            	debug("info", ok, info)
+            	assert(ok)
+            	assert(type(info)=='table')
+            	assert(info.capacity == capacity)
+            	assert(info.probability == probability)
+            	assert(info.size == 5)
+            
+            	-- drop a filter
+            	local ok, err = bloom:drop('my_filter')
+            	debug("drop", ok, err)
+            	assert(ok==true)
+            	assert(err == "Done")
+            
+            
+            	-- Test filter not exist
+            	local ok, err = bloom:drop('my_filter')
+            	debug("drop-not-exist", ok, err)
+            	assert(ok==false)
+            	assert(err == "Filter does not exist")
+            
+            
+            	-- create, close and clear a bloom filter, my_filter2 is still in disk.
+            	local ok, err = bloom:create("my_filter2", 10000*20, 0.001)
+            	debug("create-new", ok, err)
+            	assert(ok == true)
+            	assert(err == "Done", "err ~= 'Done'")
+            	local ok, err = bloom:close("my_filter2")
+            	debug("close", ok, err)
+            	assert(ok==true)
+            	assert(err == "Done")
+            	local ok, err = bloom:clear("my_filter2")
+            	debug("clear", ok, err)
+            	assert(ok==true)
+            	assert(err == "Done")
+            
+            	ngx.say("--------- all test ok --------------")
+            end
+            local ok, err = pcall(test_main)
+            if not ok then
+            	bloom:close("my_filter")
+            	bloom:close("my_filter2")
+            	bloom:close("my_filter3")
+            	assert(ok, err)
+            end
 
-        location /not_used {
-            # do not use the geo
-            mm_geo off;
-            echo "$http_x_province";
+            ';
         }
     }
-}
-
-```
-# Compatibility
-本模块兼容以下版本nginx:
-* 1.7.x (last tested: 1.7.4)
-* 1.6.x (last tested: 1.6.1)
-* 1.4.x (last tested: 1.4.7)
-* 1.2.x (last tested: 1.2.9)
-* 1.0.x (last tested: 1.0.15)
-
-# Installation
-```shell
-# echo-nginx-module只是测试时需要使用,本模块并不依赖它。
-cd nginx-1.x.x
-./configure --add-module=path/to/ngx_geo_mod \
-            --add-module=path/to/echo-nginx-module
-make
-make install
 ```
 
-# Compile The GEO Compiler
-```shell
-cd path/to/ngx_geo_mod
-make
->gcc -g geodata_compiler.c array.c -o geoc
->gcc -D_TOOLS_ -g geodata.c -o geot
->gcc -g -Werror geodata.c -fPIC -shared -o libgeo.so
-```
-* geoc是GEO编译器
-* geot是GEO数据文件测试程序
-* libgeo.so 是动态库，可以在各种程序中调用该模块。
+Methods
+=======
 
-# Directives
-* [geodata_file](#geodata_file)
-* [mm_geo](#mm_geo)
-* [ip_from_url](#ip_from_url)
-* [ip_from_head](#ip_from_head)
-* [proxies](#proxies)
-* [proxies_recursive](#proxies_recursive)
-
-geodata_file
-----------
-**syntax:** *geodata_file &lt;path to binary geodata file&gt;*
-
-**default:** *--*
-
-**context:** *http*
-
-指定二进制的GEO数据文件路径。该数据文件使用geoc编译生成。生成方法参考[编译器的使用](#compile-geo-data-file)
-
-mm_geo
-----------
-**syntax:** *mm_geo &lt;on | off&gt;*
-
-**default:** *off*
-
-**context:** *http*,*server*,*location*,*location if*
-
-打开或者关闭geo模块。打开GEO模块后，HTTP请求头中会添加4个自定义头：
-* x-province *省份信息*
-* x-city *城市信息*
-* x-isp *ISP信息*
-* x-ip *IP*
-
-请求头可以在nginx各种模块中使用。使用方法见[变量的使用](#variable-usage)。
-
-ip_from_url
-----------
-**syntax:** *ip_from_url &lt;on | off&gt;*
-
-**default:** *off*
-
-**context:** *http*
-
-设置是否可以从HTTP请求参数中获取IP信息，该指令主要用于测试。
-打开后，可以通过get参数*ip*指定IP信息，如： `http://server/url?ip=192.168.1.40 `
+[Back to TOC](#table-of-contents)
 
 
-ip_from_head
-----------
-**syntax:** *ip_from_head &lt;on | off&gt;*
+[Back to TOC](#table-of-contents)
 
-**default:** *off*
+Installation
+============
 
-**context:** *http*
+You need to compile [ngx_lua](https://github.com/chaoslawful/lua-nginx-module/tags) with your Nginx.
 
-设置是可以从HTTP请求头获取IP地址信息，当设置成on时，模块会获取X-Real-IP或X-Forwarded-For中的IP地址。当nginx前端是代理时可使用该选项。
+You need to configure
+the [lua_package_path](https://github.com/chaoslawful/lua-nginx-module#lua_package_path) directive to
+add the path of your `lua-resty-bloomd` source tree to ngx_lua's Lua module search path, as in
 
-proxies
-----------
-**syntax:** *proxies &lt;address | CIDR&gt;*
+    # nginx.conf
+    http {
+        lua_package_path "/path/to/lua-resty-bloomd/lib/?.lua;;";
+        ...
+    }
 
-**default:** *--*
+and then load the library in Lua:
 
-**context:** *http*
+    local gh = require "resty.bloomd"
 
-设置受信任的代理地址。当需要从请求头X-Forwarded-For中获取IP地址，并且nginx版本大于1.3.13时需要使用该指令。
-
-proxies_recursive
-----------
-**syntax:** *proxies_recursive &lt;on | off&gt;*
-
-**default:** *off*
-
-**context:** *http*
-
-If recursive search is disabled, the original client address that matches one of the trusted addresses is replaced by the last address sent in the request header field defined by the real_ip_header directive.
-
-If recursive search is enabled, the original client address that matches one of the trusted addresses is replaced by the last non-trusted address sent in the request header field.
-
-# Gets The IP Order
-GEO模块获取IP地址的的顺序如下：
-* 如果ip_from_url开启了，从请求GET参数ip中获取。
-* 如果ip_from_head开启了：
-    * 先从请求头X-Real-IP中获取，如果没有，从请求头X-Forwarded-For中获取。
-* 如果以上两个选项都未开启，使用socket中的实际IP地址。
-
-# Variable Usage
-mm_geo指令设置成on后，如果查找到相应的GEO信息，会添加4个自定义信息到请求头中。请求头见指令[mm_geo](#mm_geo)。这些请求头可以跟其它请求头一样在nginx各模块中引用。访问方式是：$http_请求头 。
-* 在access log中使用：
-
-```nginx
-log_format  main  '$http_x_province $http_x_city $http_x_isp xxxx';
-```
-
-* 在echo模块中使用
-
-```nginx
-location /area {
-    # used variables in module
-	echo "      ip: $http_x_ip";
-	echo "province: $http_x_province";
-	echo "    city: $http_x_city";
-	echo "     isp: $http_x_isp";
-}
-```
-
-# Compile Geo Data File
-##### Geo Data File Format
-使用编译器编译GEO前，先准备好相应的文本格式数据文件。文件格式如下：
-```
-################# comment ##################
-1.2.3.0  1.2.3.255   BeiJing   BeiJing Unicom
-1.2.4.0  1.2.4.255   BeiJing   BeiJing Telecom
-1.2.5.0  1.3.5.255   BeiJing   BeiJing Mobile
-2.1.1.0  2.1.2.255   HuBei Wuhan Unicom
-```
-* 以#开头的行为注释，编译器会直接忽略掉。
-* 数据一共5列，分别为：IP段开始值，开始段结束值，省份，城市，ISP。列之间以一个或多个空格(或Tab)分割。
-* 数据必须是按IP排好序的。否则编译时会出错。注意：如果IP段有包含关系，同样会判定为未排序的，会导致编译错误。
-
-##### Compile Data File
-```shell
-./geoc geodata.txt
---------- Compile geodata.txt OK
---------- Output: geodata.geo
-```
-编译好之后，就可以拿geodata.geo去mm_geo模块中使用了。
-
-##### Test Binary GEO Data File By geot
-```shell
-./geot geodata.geo
-#运行之后程序会提示输入IP，输入一个IP后，会显示查询结果。
-Input a ip:1.2.4.1
-> [1.2.4.1] -----------  [1.2.4.0-1.2.4.255 BeiJing BeiJing Telecom]
-```
+[Back to TOC](#table-of-contents)
 
 Authors
 =======
 
-* liuxiaojie (刘小杰)  <jie123108@163.com>
+Xiaojie Liu <jie123108@163.com>。
 
 [Back to TOC](#table-of-contents)
 
-Copyright & License
-===================
+Copyright and License
+=====================
 
-This module is licenced under the BSD license.
+This module is licensed under the BSD license.
 
-Copyright (C) 2014, by liuxiaojie (刘小杰)  <jie123108@163.com>
+Copyright (C) 2015, by Xiaojie Liu <jie123108@163.com>
 
 All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+[Back to TOC](#table-of-contents)
+
