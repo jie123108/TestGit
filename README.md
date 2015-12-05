@@ -134,9 +134,9 @@ make install
      * second: current second 
 
 # Directives
-* [shmap_size] (# shmap_size) 
-* [shmap_exptime] (# shmap_exptime) 
-* [request_stats] (# request_stats) 
+* [shmap_size] (#shmap_size) 
+* [shmap_exptime] (#shmap_exptime) 
+* [request_stats] (#request_stats) 
 * [request_stats_query] (# request_stats_query) 
 
 shmap_size
