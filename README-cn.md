@@ -1,424 +1,241 @@
-# NginxÍ³¼ÆÄ£¿é 
+ï»¿# Nginx mmap geo module
+   ngx_geo_mod æ˜¯ä¸€ä¸ªåœ°ç†ä½ç½®ä¿¡æ¯æŸ¥è¯¢æ¨¡å—ã€‚å…¶æ ¹æ®å®¢æˆ·ç«¯IPæŸ¥è¯¢å‡ºå¯¹åº”çš„çœä»½ï¼ŒåŸå¸‚ï¼ŒISPä¿¡æ¯ï¼Œå†™å…¥è¯·æ±‚å¤´ã€‚
+   
+   æœ¬æ¨¡å—åŒ…å«ä¸€ä¸ªå°†æ–‡æœ¬æ ¼å¼çš„åœ°ç†ä½ç½®ä¿¡æ¯ç¼–è¯‘æˆäºŒè¿›åˆ¶æ•°æ®çš„ç¼–è¯‘å™¨ã€‚æ¨¡å—è¿è¡Œæ—¶ç›´æ¥ä½¿ç”¨äºŒè¿›åˆ¶æ•°æ®ï¼Œå¹¶ä¸”é‡‡ç”¨mmapæ–¹å¼åŠ è½½æ–‡ä»¶ï¼Œä¸éœ€è¦ä»»ä½•è§£æè¿‡ç¨‹ã€‚
 
-  ngx_request_statsÊÇÒ»¸önginxÍ³¼ÆÄ£¿é£¬ÆäÍ³¼ÆÏîÊÇ¿ÉÅäÖÃµÄ£¬²¢ÇÒ¿ÉÒÔÍ³¼Æ²»Í¬µÄĞéÄâÖ÷»ú£¬²»Í¬µÄURL¡£¿ÉÒÔÍ³¼ÆµÄ°üÀ¨ÇëÇó´ÎÊı£¬¸÷¸ö×´Ì¬ÂëµÄ´ÎÊı£¬Êä³öµÄÁ÷Á¿ÀÛ¼ÆĞÅÏ¢£¬Æ½¾ù´¦ÀíÊ±¼äµÈµÈ¡£
-
-# Table of contents
-
-* [Ê¾ÀıÅäÖÃ](#synopsis)
-* [Nginx¼æÈİĞÔ](#compatibility)
-* [Ä£¿é±àÒë](#installation)
-* [Ä£¿é±äÁ¿](#variables)
-* [Ä£¿éÖ¸Áî](#directives)
-    * [shmap_size](#shmap_size)
-    * [shmap_exptime](#shmap_exptime)
-    * [request_stats](#request_stats)
-    * [request_stats_query](#request_stats_query)
-* [Í³¼Æ²éÑ¯](#statistics-query)
-	* [ÎÄ±¾¸ñÊ½](#text-format)
-	* [html¸ñÊ½](#html-format)
- 	* [json¸ñÊ½](#json-format)
-	* [²éÑ¯²¢ÇÒ½«²éÑ¯ÏîÇåÁã](#query-and-clear)
-	* [²éÑ¯Ä³Ò»¸öÍ³¼ÆÏî](#query-by-status_name)
-* [×÷ÓÃÓòËµÃ÷](#scope)
-* [¼òµ¥½Å±¾²âÊÔ](#simple-test)
-* [Ïà¹ØÄ£¿é](#see-also)
+# Table of Contents
+* [å®Œæ•´ç¤ºä¾‹](#synopsis)
+* [Nginxå…¼å®¹æ€§](#compatibility)
+* [æ¨¡å—ç¼–è¯‘](#installation)
+* [ç¼–è¯‘GEOç¼–è¯‘å™¨](#compile-the-geo-compiler)
+* [æ¨¡å—æŒ‡ä»¤](#directives)
+    * [geodata_file](#geodata_file)
+    * [mm_geo](#mm_geo)
+    * [ip_from_url](#ip_from_url)
+    * [ip_from_head](#ip_from_head)
+    * [proxies](#proxies)
+    * [proxies_recursive](#proxies_recursive)
+* [è·å–IPçš„æ–¹å¼](#gets-the-ip-order)
+* [å˜é‡çš„ä½¿ç”¨](#variable-usage)
+* [ç¼–è¯‘å™¨çš„ä½¿ç”¨](#compile-geo-data-file)
+    * [æ•°æ®æ–‡ä»¶æ ¼å¼](#geo-data-file-format)
+    * [ç¼–è¯‘æ•°æ®æ–‡ä»¶](#compile-data-file)
+    * [ä½¿ç”¨geotæµ‹è¯•äºŒè¿›åˆ¶GEOæ–‡ä»¶](#test-binary-geo-data-file-by-geot)
 
 # Synopsis
 ```nginx
 http {
-	request_stats statby_host "$host";	
-	shmap_size 32m;
-	shmap_exptime 2d;
+    include       mime.types;
+    default_type  application/octet-stream;
 
-	server {
-		listen 81;
-		server_name localhost;
-		location / {
-			echo "byhost:$uri";
-		}
-		location /404 {
-			return 404;
-		}
-	}
-	
-	server {
-		listen       80;
-		server_name  localhost;
+    # set the data file path
+    geodata_file /root/work/GitHub/ngx_geo_mod/top20.geo;
+    # Get the IP address from the URL, only for testing.
+    ip_from_url on;
+    # Get the IP address from the request header, set to on when front-end have proxy.
+    ip_from_head on;
+    # Set the trusted proxy address. when the ip_from_head is true to used
+    proxies 127.0.0.1/24;
+    proxies_recursive on;
 
-		location /stats {
-			request_stats off; #do not stats.
-			request_stats_query on;
-			allow 127.0.0.1;
-			allow 192.168.0.0/16;
-			deny all;
-		}
+    # used variables in access log.
+    log_format  main  '$remote_addr@$http_x_province $http_x_city '
+                      '$http_x_isp [$time_local] "$request" '
+                      '$status $body_bytes_sent "$http_referer" '
+                      '"$http_user_agent" "$http_x_forwarded_for"';
+    access_log  logs/access.log  main;
 
-		location /byuri {
-			request_stats statby_uri "uri:$uri";
-			echo "byuri: $uri";
-		}
+    # Use the geo 
+	mm_geo on;
+    server {
+        listen       80;
+        server_name  localhost;
+        location /area {
+            # used variables in module
+        	echo "      ip: $http_x_ip";
+        	echo "province: $http_x_province";
+        	echo "    city: $http_x_city";
+        	echo "     isp: $http_x_isp";
+        }
 
-		location /byarg {
-			echo_sleep 0.005;
-			request_stats statby_arg "clitype:$arg_client_type";		
-			echo "login $args";
-		}
-		
-		location /byarg/404 {
-			request_stats statby_arg "clitype:$arg_client_type";		
-			return 404;
-		}
-
-		location /byuriarg {
-			request_stats statby_uriarg "$uri?$arg_from";	
-			echo "$uri?$args";
-		}
-
-		location /byhttpheaderin {
-			request_stats statby_headerin "header_in:$http_city";
-			echo "city: $http_city";
-		}
-		
-		location /byhttpheaderout/ {
-			request_stats statby_headerout "cache:$sent_http_cache";
-			proxy_pass http://127.0.0.1:82;
-		}
-	}
-
-  server {
-	listen       82;
-	server_name  localhost;
-	location /byhttpheaderout/hit {
-		add_header cache hit;
-		echo "cache: hit";
-	}
-	location /byhttpheaderout/miss {
-		add_header cache miss;
-		echo "cache: miss";
-	}
-  }
+        location /not_used {
+            # do not use the geo
+            mm_geo off;
+            echo "$http_x_province";
+        }
+    }
 }
 
 ```
-
 # Compatibility
-±¾Ä£¿é¼æÈİÒÔÏÂ°æ±¾nginx:
+æœ¬æ¨¡å—å…¼å®¹ä»¥ä¸‹ç‰ˆæœ¬nginx:
 * 1.7.x (last tested: 1.7.4)
 * 1.6.x (last tested: 1.6.1)
 * 1.4.x (last tested: 1.4.7)
 * 1.2.x (last tested: 1.2.9)
 * 1.0.x (last tested: 1.0.15)
 
-
 # Installation
-```
-# echo-nginx-moduleÖ»ÊÇ²âÊÔÊ±ĞèÒªÊ¹ÓÃ,±¾Ä£¿é²¢²»ÒÀÀµËü¡£
+```shell
+# echo-nginx-moduleåªæ˜¯æµ‹è¯•æ—¶éœ€è¦ä½¿ç”¨,æœ¬æ¨¡å—å¹¶ä¸ä¾èµ–å®ƒã€‚
 cd nginx-1.x.x
-./configure --add-module=path/to/ngx_request_stats \
---add-module=path/to/echo-nginx-module-0.49/
+./configure --add-module=path/to/ngx_geo_mod \
+            --add-module=path/to/echo-nginx-module
 make
 make install
 ```
 
-# Variables
-* nginx_coreÄ£¿éÖ§³ÖµÄ±äÁ¿£ºhttp://nginx.org/en/docs/http/ngx_http_core_module.html#variables
-* ±¾Ä£¿é±äÁ¿
-    * uri_full ÖØ¶¨ÏòÖ®Ç°µÄuri¡£
-    * status HttpÏìÓ¦Âë
-    * date µ±Ç°ÈÕÆÚ£¬¸ñÊ½Îª£º1970-09-28
-    * time µ±Ç°Ê±¼ä£¬¸ñÊ½Îª£º12:00:00
-    * year µ±Ç°Äê·İ
-    * month µ±Ç°ÔÂ·İ
-    * day µ±Ç°ÈÕ
-    * hour µ±Ç°Ğ¡Ê±
-    * minute µ±Ç°·Ö
-    * second µ±Ç°Ãë
+# Compile The GEO Compiler
+```shell
+cd path/to/ngx_geo_mod
+make
+>gcc -g geodata_compiler.c array.c -o geoc
+>gcc -D_TOOLS_ -g geodata.c -o geot
+>gcc -g -Werror geodata.c -fPIC -shared -o libgeo.so
+```
+* geocæ˜¯GEOç¼–è¯‘å™¨
+* geotæ˜¯GEOæ•°æ®æ–‡ä»¶æµ‹è¯•ç¨‹åº
+* libgeo.so æ˜¯åŠ¨æ€åº“ï¼Œå¯ä»¥åœ¨å„ç§ç¨‹åºä¸­è°ƒç”¨è¯¥æ¨¡å—ã€‚
 
 # Directives
-* [shmap_size](#shmap_size)
-* [shmap_exptime](#shmap_exptime)
-* [request_stats](#request_stats)
-* [request_stats_query](#request_stats_query)
+* [geodata_file](#geodata_file)
+* [mm_geo](#mm_geo)
+* [ip_from_url](#ip_from_url)
+* [ip_from_head](#ip_from_head)
+* [proxies](#proxies)
+* [proxies_recursive](#proxies_recursive)
 
-shmap_size
+geodata_file
 ----------
-**syntax:** *shmap_size &lt;size&gt;*
+**syntax:** *geodata_file &lt;path to binary geodata file&gt;*
 
-**default:** *32m*
+**default:** *--*
 
 **context:** *http*
 
-¶¨ÒåÍ³¼ÆËùÊ¹ÓÃµÄ¹²ÏíÄÚ´æ´óĞ¡¡£
-*&lt;size&gt;*¿ÉÒÔÊ¹ÓÃ´óĞ¡µ¥Î»£¬Èçk,m,g¡£
+æŒ‡å®šäºŒè¿›åˆ¶çš„GEOæ•°æ®æ–‡ä»¶è·¯å¾„ã€‚è¯¥æ•°æ®æ–‡ä»¶ä½¿ç”¨geocç¼–è¯‘ç”Ÿæˆã€‚ç”Ÿæˆæ–¹æ³•å‚è€ƒ[ç¼–è¯‘å™¨çš„ä½¿ç”¨](#compile-geo-data-file)
 
-
-shmap_exptime
+mm_geo
 ----------
-**syntax:** *shmap_exptime &lt;expire time&gt;*
-
-**default:** *2d*
-
-**context:** *http*
-
-¶¨ÒåÍ³¼ÆĞÅÏ¢ÔÚ¹²ÏíÄÚ´æÖĞµÄ¹ıÆÚÊ±¼ä¡£
-¿ÉÒÔÊ¹ÓÃm,h,dµÈ±íÊ¾·ÖÖÓ£¬Ğ¡Ê±£¬Ìì¡£
-
-request_stats
-----------
-**syntax:** *request_stats &lt;stats-name&gt; &lt;stats-key&gt;*
-
-**default:** *no*
-
-**context:** *http,server,location,location if*
-
-¶¨ÒåÍ³¼ÆĞÅÏ¢¸ñÊ½£¬Ê¹ÓÃ `request_stats off;` ¿É¹Ø±ÕÄ³¸öhttp,server,locationÏÂµÄÍ³¼Æ¡£
-* stats-nameÊÇ¸ÃÍ³¼ÆÃû³Æ(Àà±ğ)£¬¿É°´¹¦ÄÜËæÒâ¶¨Òå£¬ÔÚºóÃæµÄ²éÑ¯Ö¸ÁîÖĞ£¬¿ÉÖ¸¶¨stats-name²éÑ¯Ö¸¶¨µÄÍ³¼ÆÀàĞÍ¡£
-* stats-key¶¨ÒåÍ³¼ÆµÄkey¡£keyÖĞ¿ÉÊ¹ÓÃ¸÷ÖÖ±äÁ¿£¬¼°×Ö·û´®£¬ÕâÑù²»Í¬µÄÇëÇó±ã·Ö±ğ¼ÇÂ¼¡£[Ö§³ÖµÄ±äÁ¿](#variables)Ò»½ÚÖĞÁĞ³öÁËËùÓĞÖ§³ÖµÄ±äÁ¿¡£**×¢Òâ£º²»ÒªÊ¹ÓÃ¹ıÓÚËæ»ú»¯µÄ±äÁ¿µ±³Ékey,ÕâÑù»áµ¼ÖÂÃ¿¸öÇëÇóÓĞÒ»·İÍ³¼ÆĞÅÏ¢£¬Òò¶øÕ¼ÓÃ´óÁ¿¹²ÏíÄÚ´æ¿Õ¼ä**
-
-#### °´host½øĞĞÍ³¼Æ
-```nginx
-request_stats statby_host "$host";	
-```
-#### °´uri½øĞĞÍ³¼Æ
-```nginx
-request_stats statby_uri "uri:$uri"; #»¹Ìí¼ÓÁË uri:Ç°×º¡£
-```
-#### °´ÇëÇó²ÎÊı(GET)½øĞĞÍ³¼Æ
-```nginx
-request_stats statby_arg "clitype:$arg_client_type"; #°´²ÎÊıclient_typeÍ³¼Æ
-```
-
-#### °´uriºÍ²ÎÊı½øĞĞÍ³¼Æ
-```nginx
-request_stats statby_uriarg "$uri?$arg_from";	
-```
-
-#### °´HTTPÇëÇóÍ·×Ö¶Î½øĞĞÍ³¼Æ
-```nginx
-request_stats statby_uriarg "header_in:$http_city";
-```
-#### °´HTTPÏìÓ¦Í·×Ö¶Î½øĞĞÍ³¼Æ
-```nginx
-# *×¢Òâ£¬µ±Ç°locationÏÂÍ¨¹ıadd_headerÌí¼ÓµÄÏìÓ¦Í·¶ÁÈ¡²»µ½¡£
-request_stats statby_uriarg "cache:$sent_http_cache";
-```
-
-request_stats_query
-----------
-**syntax:** *request_stats_query &lt;on&gt;*
+**syntax:** *mm_geo &lt;on | off&gt;*
 
 **default:** *off*
 
-**context:** *location*
+**context:** *http*,*server*,*location*,*location if*
 
-¿ªÆôÍ³¼Æ²éÑ¯Ä£¿é¡£¿ªÆôºó£¬¾Í¿ÉÒÔÍ¨¹ı¸Ãlocation·ÃÎÊµ½Í³¼ÆĞÅÏ¢¡£
-Í³¼ÆĞÅÏ¢²éÑ¯Ä£¿éÓĞÈı¸ö¿ÉÑ¡µÄ²ÎÊı£º
-* clean: ÎªtrueÊ±±íÊ¾£¬²éÑ¯Í³¼ÆĞÅÏ¢£¬²¢½«±¾´Î²éÑ¯µÄÍ³¼ÆÏîÇåÁã¡£
-* fmt: ¿ÉÑ¡ÖµÎª£ºhtml,json,text£¬·Ö±ğÒÔhtml,json,text¸ñÊ½ÏÔÊ¾¡£Ä¬ÈÏ¸ñÊ½Îªtext¡£html¿ÉÒÔÖ±½ÓÒÔä¯ÀÀÆ÷²é¿´£¬json¸ñÊ½·½±ãÄãÊ¹ÓÃpythonµÈ½Å±¾ÓïÑÔ½âÎö½á¹û¡£text¸ñÊ½·½±ãÔÚÃüÁîÏÂ²éÑ¯£¬¼°Í¨¹ıawkµÈshellÃüÁî½øĞĞ´¦Àí¡£
-* stats_name£ºÒª²éÑ¯µÄÍ³¼ÆÃû£¬¸ÃÍ³¼ÆÃû³Æ±ØĞëÊÇÔÚrequest_statsÖ¸ÁîµÄµÚÒ»¸ö²ÎÊıÖ¸¶¨µÄstats-nameÖĞµÄÒ»¸ö¡£ µ±²»Ö¸¶¨¸Ã²ÎÊıÊ±£¬±íÊ¾²éÑ¯ËùÓĞÍ³¼Æ¡£
+æ‰“å¼€æˆ–è€…å…³é—­geoæ¨¡å—ã€‚æ‰“å¼€GEOæ¨¡å—åï¼ŒHTTPè¯·æ±‚å¤´ä¸­ä¼šæ·»åŠ 4ä¸ªè‡ªå®šä¹‰å¤´ï¼š
+* x-province *çœä»½ä¿¡æ¯*
+* x-city *åŸå¸‚ä¿¡æ¯*
+* x-isp *ISPä¿¡æ¯*
+* x-ip *IP*
+
+è¯·æ±‚å¤´å¯ä»¥åœ¨nginxå„ç§æ¨¡å—ä¸­ä½¿ç”¨ã€‚ä½¿ç”¨æ–¹æ³•è§[å˜é‡çš„ä½¿ç”¨](#variable-usage)ã€‚
+
+ip_from_url
+----------
+**syntax:** *ip_from_url &lt;on | off&gt;*
+
+**default:** *off*
+
+**context:** *http*
+
+è®¾ç½®æ˜¯å¦å¯ä»¥ä»HTTPè¯·æ±‚å‚æ•°ä¸­è·å–IPä¿¡æ¯ï¼Œè¯¥æŒ‡ä»¤ä¸»è¦ç”¨äºæµ‹è¯•ã€‚
+æ‰“å¼€åï¼Œå¯ä»¥é€šè¿‡getå‚æ•°*ip*æŒ‡å®šIPä¿¡æ¯ï¼Œå¦‚ï¼š `http://server/url?ip=192.168.1.40 `
 
 
-×îĞ¡Ê¾Àı£º
+ip_from_head
+----------
+**syntax:** *ip_from_head &lt;on | off&gt;*
+
+**default:** *off*
+
+**context:** *http*
+
+è®¾ç½®æ˜¯å¯ä»¥ä»HTTPè¯·æ±‚å¤´è·å–IPåœ°å€ä¿¡æ¯ï¼Œå½“è®¾ç½®æˆonæ—¶ï¼Œæ¨¡å—ä¼šè·å–X-Real-IPæˆ–X-Forwarded-Forä¸­çš„IPåœ°å€ã€‚å½“nginxå‰ç«¯æ˜¯ä»£ç†æ—¶å¯ä½¿ç”¨è¯¥é€‰é¡¹ã€‚
+
+proxies
+----------
+**syntax:** *proxies &lt;address | CIDR&gt;*
+
+**default:** *--*
+
+**context:** *http*
+
+è®¾ç½®å—ä¿¡ä»»çš„ä»£ç†åœ°å€ã€‚å½“éœ€è¦ä»è¯·æ±‚å¤´X-Forwarded-Forä¸­è·å–IPåœ°å€ï¼Œå¹¶ä¸”nginxç‰ˆæœ¬å¤§äº1.3.13æ—¶éœ€è¦ä½¿ç”¨è¯¥æŒ‡ä»¤ã€‚
+
+proxies_recursive
+----------
+**syntax:** *proxies_recursive &lt;on | off&gt;*
+
+**default:** *off*
+
+**context:** *http*
+
+If recursive search is disabled, the original client address that matches one of the trusted addresses is replaced by the last address sent in the request header field defined by the real_ip_header directive.
+
+If recursive search is enabled, the original client address that matches one of the trusted addresses is replaced by the last non-trusted address sent in the request header field.
+
+# Gets The IP Order
+GEOæ¨¡å—è·å–IPåœ°å€çš„çš„é¡ºåºå¦‚ä¸‹ï¼š
+* å¦‚æœip_from_urlå¼€å¯äº†ï¼Œä»è¯·æ±‚GETå‚æ•°ipä¸­è·å–ã€‚
+* å¦‚æœip_from_headå¼€å¯äº†ï¼š
+    * å…ˆä»è¯·æ±‚å¤´X-Real-IPä¸­è·å–ï¼Œå¦‚æœæ²¡æœ‰ï¼Œä»è¯·æ±‚å¤´X-Forwarded-Forä¸­è·å–ã€‚
+* å¦‚æœä»¥ä¸Šä¸¤ä¸ªé€‰é¡¹éƒ½æœªå¼€å¯ï¼Œä½¿ç”¨socketä¸­çš„å®é™…IPåœ°å€ã€‚
+
+# Variable Usage
+mm_geoæŒ‡ä»¤è®¾ç½®æˆonåï¼Œå¦‚æœæŸ¥æ‰¾åˆ°ç›¸åº”çš„GEOä¿¡æ¯ï¼Œä¼šæ·»åŠ 4ä¸ªè‡ªå®šä¹‰ä¿¡æ¯åˆ°è¯·æ±‚å¤´ä¸­ã€‚è¯·æ±‚å¤´è§æŒ‡ä»¤[mm_geo](#mm_geo)ã€‚è¿™äº›è¯·æ±‚å¤´å¯ä»¥è·Ÿå…¶å®ƒè¯·æ±‚å¤´ä¸€æ ·åœ¨nginxå„æ¨¡å—ä¸­å¼•ç”¨ã€‚è®¿é—®æ–¹å¼æ˜¯ï¼š$http_è¯·æ±‚å¤´ ã€‚
+* åœ¨access logä¸­ä½¿ç”¨ï¼š
+
 ```nginx
-location /stats {
-	request_stats_query on;
+log_format  main  '$http_x_province $http_x_city $http_x_isp xxxx';
+```
+
+* åœ¨echoæ¨¡å—ä¸­ä½¿ç”¨
+
+```nginx
+location /area {
+    # used variables in module
+	echo "      ip: $http_x_ip";
+	echo "province: $http_x_province";
+	echo "    city: $http_x_city";
+	echo "     isp: $http_x_isp";
 }
 ```
-Í³¼Æ²éÑ¯Çë¼û[Í³¼Æ²éÑ¯](#statistics-query)Ò»½Ú
 
-Statistics-Query
---------------
-&nbsp;&nbsp;¿ªÆôrequest_stats_queryºó£¬¾Í¿ÉÒÔÍ¨¹ıÏàÓ¦µÄuri·ÃÎÊÍ³¼Æ½á¹û£¬±ÈÈçÉÏ½ÚÅäÖÃÖĞ£¬·ÃÎÊ
-http://192.168.1.201/stats ¾Í¿ÉÒÔÏÔÊ¾Ïà¹ØÍ³¼ÆĞÅÏ¢¡£**192.168.1.201ÊÇÎÒµÄÖ÷»ú**
-
-²éÑ¯½á¹ûÖĞÒ»°ãÓĞÈçÏÂ¼¸¸ö×Ö¶Î£º
-* key, request_statsÖĞ¶¨ÒåµÄkey
-* stats_time, Í³¼ÆĞÅÏ¢¿ªÊ¼Ê±¼ä
-* request, ÇëÇó´ÎÊı
-* recv, ½ÓÊÕ×Ö½ÚÊı
-* sent, ·¢ËÍ×Ö½ÚÊı
-* avg_time, ÇëÇóÆ½¾ùÊ±¼ä(ºÁÃë)
-* stats, httpÏìÓ¦Âë, ÆäÖĞ499ÊÇºó¶Ë³¬Ê±ÁË¡£
-
-&nbsp;&nbsp;**ÒÔÏÂËùÓĞ²éÑ¯½á¹û¶¼ÊÇÔÚÔËĞĞ[¼òµ¥½Å±¾²âÊÔ](#simple-test)Ò»½ÚÖĞµÄ²âÊÔ½Å±¾ºó²úÉúµÄ¡£**
-
-#### Text Format
-http://192.168.1.201/stats
-```bash
-# Optional parameters:
-# clean=true, query stats and set the all query data to zero in the share memory.
-# fmt=[html|json|text], The default is text.
-# stats_name=[ statby_host| statby_uri| statby_arg| statby_uriarg| statby_headerin| statby_headerout], The default is all.
-key	stats_time	request	recv	sent	avg_time	stat
-localhost	2014-08-31 22:16:47	1	0	0	0	 400:1
-127.0.0.1	2014-08-31 22:16:29	80	14687	15854	0	 200:60, 404:20
-cache:miss	2014-08-31 22:16:29	20	3560	3800	0	 200:20
-cache:hit	2014-08-31 22:16:29	20	3540	3760	0	 200:20
-header_in:beijing	2014-08-31 22:16:29	20	3740	3580	0	 200:20
-header_in:shengzheng	2014-08-31 22:16:29	20	3800	3660	0	 200:20
-header_in:shanghai	2014-08-31 22:16:29	20	3760	3600	0	 200:20
-/byuriarg?mobile_cli	2014-08-31 22:16:29	20	3640	3840	0	 200:20
-/byuriarg?pc_cli	2014-08-31 22:16:29	20	3560	3760	0	 200:20
-/byuriarg?partner	2014-08-31 22:16:29	20	3580	3780	0	 200:20
-clitype:android	2014-08-31 22:16:29	40	7400	10280	2	 200:20, 404:20
-clitype:ios	2014-08-31 22:16:29	20	3580	3760	5	 200:20
-clitype:pc	2014-08-31 22:16:29	20	3560	3740	5	 200:20
-uri:/byuri/14858	2014-08-31 22:16:30	1	169	186	0	 200:1
-uri:/byuri/10475	2014-08-31 22:16:30	1	169	186	0	 200:1
-...
-``` 
-#### Html Format
-http://192.168.1.201/stats?fmt=html
-![²éÑ¯½çÃæ](view_html.png)
-
-#### Json format 
-http://192.168.1.201/stats?fmt=json
-```json
-{"Optional parameters":{
-"clean":"clean=true, query stats and set the all query data to zero in the share memory.",
-"fmt":"fmt=[html|json|text], The default is text.",
-"stats_name":[" statby_host| statby_uri| statby_arg| statby_uriarg| statby_headerin| statby_headerout"]
-},
-"request-stat":{
-"localhost":{"stats_time":"2014-08-31 22:16:47","request":2,"recv":0,"sent":0,"avg_time":0,"stat":{"400":2}},
-"127.0.0.1":{"stats_time":"2014-08-31 22:16:29","request":80,"recv":14687,"sent":15854,"avg_time":0,"stat":{"200":60,"404":20}},
-"cache:miss":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3560,"sent":3800,"avg_time":0,"stat":{"200":20}},
-"cache:hit":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3540,"sent":3760,"avg_time":0,"stat":{"200":20}},
-"header_in:beijing":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3740,"sent":3580,"avg_time":0,"stat":{"200":20}},
-"header_in:shengzheng":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3800,"sent":3660,"avg_time":0,"stat":{"200":20}},
-"header_in:shanghai":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3760,"sent":3600,"avg_time":0,"stat":{"200":20}},
-"/byuriarg?mobile_cli":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3640,"sent":3840,"avg_time":0,"stat":{"200":20}},
-"/byuriarg?pc_cli":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3560,"sent":3760,"avg_time":0,"stat":{"200":20}},
-"/byuriarg?partner":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3580,"sent":3780,"avg_time":0,"stat":{"200":20}},
-"clitype:android":{"stats_time":"2014-08-31 22:16:29","request":40,"recv":7400,"sent":10280,"avg_time":2,"stat":{"200":20,"404":20}},
-"clitype:ios":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3580,"sent":3760,"avg_time":5,"stat":{"200":20}},
-"clitype:pc":{"stats_time":"2014-08-31 22:16:29","request":20,"recv":3560,"sent":3740,"avg_time":5,"stat":{"200":20}},
-"uri:/byuri/14858":{"stats_time":"2014-08-31 22:16:30","request":1,"recv":169,"sent":186,"avg_time":0,"stat":{"200":1}},
-"uri:/byuri/10475":{"stats_time":"2014-08-31 22:16:30","request":1,"recv":169,"sent":186,"avg_time":0,"stat":{"200":1}}
-}
-}
+# Compile Geo Data File
+##### Geo Data File Format
+ä½¿ç”¨ç¼–è¯‘å™¨ç¼–è¯‘GEOå‰ï¼Œå…ˆå‡†å¤‡å¥½ç›¸åº”çš„æ–‡æœ¬æ ¼å¼æ•°æ®æ–‡ä»¶ã€‚æ–‡ä»¶æ ¼å¼å¦‚ä¸‹ï¼š
 ```
-#### query and clear
-http://192.168.1.201/stats?clean=true
-Ê¹ÓÃclean=true²ÎÊıºó£¬±¾´Î²éÑ¯½á¹ûÒÀÈ»Õı³£ÏÔÊ¾£¬Ö»ÊÇËùÓĞ½á¹ûÏî»á±»ÇåÁã¡£
-
-#### Query by status_name
-* http://192.168.1.201/stats?stats_name=statby_headerin
-
-```text
-key	stats_time	request	recv	sent	avg_time	stat
-header_in:beijing	2014-08-31 22:16:29	20	3740	3580	0	 200:20
-header_in:shengzheng	2014-08-31 22:16:29	20	3800	3660	0	 200:20
-header_in:shanghai	2014-08-31 22:16:29	20	3760	3600	0	 200:20
+################# comment ##################
+1.2.3.0  1.2.3.255   BeiJing   BeiJing Unicom
+1.2.4.0  1.2.4.255   BeiJing   BeiJing Telecom
+1.2.5.0  1.3.5.255   BeiJing   BeiJing Mobile
+2.1.1.0  2.1.2.255   HuBei Wuhan Unicom
 ```
-* http://192.168.1.201/stats?stats_name=statby_uri
+* ä»¥#å¼€å¤´çš„è¡Œä¸ºæ³¨é‡Šï¼Œç¼–è¯‘å™¨ä¼šç›´æ¥å¿½ç•¥æ‰ã€‚
+* æ•°æ®ä¸€å…±5åˆ—ï¼Œåˆ†åˆ«ä¸ºï¼šIPæ®µå¼€å§‹å€¼ï¼Œå¼€å§‹æ®µç»“æŸå€¼ï¼Œçœä»½ï¼ŒåŸå¸‚ï¼ŒISPã€‚åˆ—ä¹‹é—´ä»¥ä¸€ä¸ªæˆ–å¤šä¸ªç©ºæ ¼(æˆ–Tab)åˆ†å‰²ã€‚
+* æ•°æ®å¿…é¡»æ˜¯æŒ‰IPæ’å¥½åºçš„ã€‚å¦åˆ™ç¼–è¯‘æ—¶ä¼šå‡ºé”™ã€‚æ³¨æ„ï¼šå¦‚æœIPæ®µæœ‰åŒ…å«å…³ç³»ï¼ŒåŒæ ·ä¼šåˆ¤å®šä¸ºæœªæ’åºçš„ï¼Œä¼šå¯¼è‡´ç¼–è¯‘é”™è¯¯ã€‚
 
-```text
-key	stats_time	request	recv	sent	avg_time	stat
-uri:/byuri/14858	2014-08-31 22:16:30	1	169	186	0	 200:1
-uri:/byuri/10475	2014-08-31 22:16:30	1	169	186	0	 200:1
-uri:/byuri/20090	2014-08-31 22:16:30	1	169	186	0	 200:1
-uri:/byuri/7054	2014-08-31 22:16:30	1	168	185	0	 200:1
-uri:/byuri/31520	2014-08-31 22:16:30	1	169	186	0	 200:1
-uri:/byuri/22000	2014-08-31 22:16:30	1	169	186	0	 200:1
-uri:/byuri/24415	2014-08-31 22:16:30	1	169	186	0	 200:1
-uri:/byuri/20883	2014-08-31 22:16:30	1	169	186	0	 200:1
-```
-
-# Scope
->request_statsÖ¸Áî×÷ÓÃÓòÊÇ:
-`NGX_HTTP_MAIN_CONF|NGX_HTTP_SRV_CONF|NGX_HTTP_LOC_CONF|NGX_HTTP_LIF_CONF`,Ò²¾ÍÊÇËµrequest_statsÖ¸ÁîÔÚhttp,server,location,ifµÈ½ÚµãÏÂ¶¼¿ÉÒÔ³öÏÖ¡£µ«ÊÇÓÉÓÚ±¾Ä£¿éÊÇÒ»¸öÔÚNGX_HTTP_LOG_PHASE½×¶ÎµÄ²å¼ş£¬Ò»´ÎÇëÇóÖ»»áÓĞÒ»¸öÅäÖÃÏîÊÇÓĞĞ§¡£µ±ÔÚ²»Í¬µÄ²ã´ÎÖĞ³öÏÖÊ±£¬Ö»ÓĞ×îÄÚ²ãµÄ»áÆô×÷ÓÃ¡£µ±È»£¬Èç¹ûÍ¬Ò»²ãÀïÃæÓĞ¶à¸örequest_statsÖ¸Áî£¬¶à¸ö¶¼»áÓĞĞ§¹û¡£±ÈÈç£º
-```
-http {
-    #...
-	request_stats byhost "$host";	
-	server {
-		listen       80;
-		location /login {
-			echo "login";
-		}
-		location /login_new {
-			request_stats byarg "$arg_client_type";		
-			echo "login_new $args";
-		}
-	}
-}
-```
-##### Ê¹ÓÃÉÏÃæµÄÅäÖÃ£¬Èç¹û×÷ÈçÏÂÈı´ÎÇëÇó£º
+##### Compile Data File
 ```shell
-curl http://127.0.0.1:80/login
-curl http://127.0.0.1:80/login_new?client_type=pc
-curl http://127.0.0.1:80/login_new?client_type=android
+./geoc geodata.txt
+--------- Compile geodata.txt OK
+--------- Output: geodata.geo
 ```
-##### Í³¼Æ½á¹û»áÊÇ£º
-```
-key         request recv    sent    avg_time
-android     1       187     210     0
-pc          1       182     205     0
-127.0.0.1   1       163     185     0
-```
-/login_newÏÂÃæµÄÇëÇó£¬ÓÉÓÚÒÑ¾­ÓĞÒ»¸öÃûÎªbyargµÄÍ³¼Æ£¬²»»áÖØ¸´Í³¼Æµ½byhostÀïÃæ¡£ÓĞÊ±ºòÕâ¿ÉÄÜ²»ÊÇÄãÏëÒªµÄ½á¹û¡£Èç¹ûÄãÏë/login_newÒ²Í³¼Æ½øbyhostÀïÃæ£¬¿ÉÒÔÔÚ/login_newÏÂÃæÔÙ¼Ó¸örequest_statsÖ¸ÁîºóµÄĞÂµÄÅäÖÃ£º
-```
-http {
-    #...
-	request_stats byhost "$host";	
-	server {
-		listen       80;
-		location /login {
-			echo "login";
-		}
-		location /login_new {
-			request_stats byarg "$arg_client_type";
-			request_stats byhost "$host";	
-			echo "login_new $args";
-		}
-	}
-}
-```
-##### ÖØĞÂ²âÊÔºó£¬½á¹ûÈçÏÂ£º
-```
-key         request recv    sent    avg_time
-127.0.0.1   3       532     600     0
-android     1       187     210     0
-pc          1       182     205     0
-```
+ç¼–è¯‘å¥½ä¹‹åï¼Œå°±å¯ä»¥æ‹¿geodata.geoå»mm_geoæ¨¡å—ä¸­ä½¿ç”¨äº†ã€‚
 
-
-
-#### Simple Test
-
-±¾²âÊÔ¶ÔÓ¦ÅäÖÃÔÚSynopsisÒ»½ÚÖĞ¡£
-²âÊÔÒÀÀµÓÚcurlÃüÁî£¬ÇëÈ·ÈÏÄãµÄÏµÍ³ÒÑ¾­°²×°curlÃüÁîĞĞ¡£
-Ô´´úÂëÄ¿Â¼ÏÂµÄ[test.sh](test.sh)
-```bash
-for ((i=0;i<20;i++));do
-curl http://127.0.0.1:81/$RANDOM
-curl http://127.0.0.1:81/404/$RANDOM
-curl http://127.0.0.1:80/byuri/$RANDOM
-curl http://127.0.0.1:80/byarg?client_type=pc
-curl http://127.0.0.1:80/byarg?client_type=ios
-curl http://127.0.0.1:80/byarg?client_type=android
-curl http://127.0.0.1:80/byarg/404?client_type=android
-curl http://127.0.0.1:80/byuriarg?from=partner
-curl http://127.0.0.1:80/byuriarg?from=pc_cli
-curl http://127.0.0.1:80/byuriarg?from=mobile_cli
-curl http://127.0.0.1:80/byhttpheaderin -H"city: shanghai"
-curl http://127.0.0.1:80/byhttpheaderin -H"city: shengzheng"
-curl http://127.0.0.1:80/byhttpheaderin -H"city: beijing"
-curl http://127.0.0.1:80/byhttpheaderout/hit
-curl http://127.0.0.1:80/byhttpheaderout/miss
-done;
-
+##### Test Binary GEO Data File By geot
+```shell
+./geot geodata.geo
+#è¿è¡Œä¹‹åç¨‹åºä¼šæç¤ºè¾“å…¥IPï¼Œè¾“å…¥ä¸€ä¸ªIPåï¼Œä¼šæ˜¾ç¤ºæŸ¥è¯¢ç»“æœã€‚
+Input a ip:1.2.4.1
+> [1.2.4.1] -----------  [1.2.4.0-1.2.4.255 BeiJing BeiJing Telecom]
 ```
-
-# See Also
-&nbsp;&nbsp;&nbsp;&nbsp;±¾Ä£¿é°ÑËùÓĞÍ³¼ÆĞÅÏ¢¶¼´æ´¢ÔÚÄÚ´æÖĞ£¬ĞèÒªÓÃ»§×Ô¼º»ñÈ¡Ïà¹ØĞÅÏ¢£¬ÔÙ´æ´¢£¬»ã×Ü¡£×÷ÕßµÄÁíÍâÒ»¸öÏîÄ¿[ngx_req_stat](https://github.com/jie123108/ngx_req_stat)Ò²ÊÇÒ»¸öÇëÇóÍ³¼ÆÄ£¿é£¬µ«Ëü¹¦ÄÜ¸ü¼ÓÇ¿´ó£¬²»¹âkeyÊÇ¿ÉÒÔ×Ô¶¨ÒåµÄ£¬Á¬Í³¼ÆµÄÖµÒ²ÊÇ¿ÉÒÔ×Ô¶¨ÒåµÄ¡£²¢ÇÒÍ³¼ÆĞÅÏ¢´æ´¢ÔÚmongodbÖĞ¡£ÏîÄ¿µØÖ·£º(https://github.com/jie123108/ngx_req_stat)
-
 
 Authors
 =======
 
-* liuxiaojie (ÁõĞ¡½Ü)  <jie123108@163.com>
+* liuxiaojie (åˆ˜å°æ°)  <jie123108@163.com>
 
 [Back to TOC](#table-of-contents)
 
@@ -427,6 +244,6 @@ Copyright & License
 
 This module is licenced under the BSD license.
 
-Copyright (C) 2014, by liuxiaojie (ÁõĞ¡½Ü)  <jie123108@163.com>
+Copyright (C) 2014, by liuxiaojie (åˆ˜å°æ°)  <jie123108@163.com>
 
 All rights reserved.
