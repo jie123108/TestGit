@@ -1,242 +1,111 @@
-# Nginx mmap geo module
-ngx_geo_mod is a geographic location information module. According to the client IP query you can inquire the provinces, cities, ISP information, and then write them to http request header.
-   
-   This module contains a compiler that compiles text format geo data into binary data. This module uses this binary data, and the use of mmap to load the file to memory, does not require any analytical process.
+Name
+====
 
-[中文版说明](README-cn.md)
+nginx-multi-disk - Let nginx support multi directory (multi disk) and cache directory, directory selection algorithm using the consistency of Hash.
 
-# Table of Contents
-* [synopsis](#synopsis)
-* [Nginx Compatibility](#compatibility)
-* [Installation](#installation)
-* [Compile The Geo Compiler](#compile-the-geo-compiler)
-* [Directives](#directives)
-    * [geodata_file](#geodata_file)
-    * [mm_geo](#mm_geo)
-    * [ip_from_url](#ip_from_url)
-    * [ip_from_head](#ip_from_head)
-    * [proxies](#proxies)
-    * [proxies_recursive](#proxies_recursive)
-* [Gets The IP Order](#get-the-ip-order)
-* [Variable Usage](#variable-usage)
-* [Compile Geo Data File](#compile-geo-data-file)
-    * [Geo Data File Format](#geo-data-file-format)
-    * [Compile Geo Data File](#compile-data-file)
-    * [Test Geo Data File By geot](#test-binary-geo-data-file-by-geot)
+[���İ�˵��](README-cn.md)
 
-# Synopsis
-```nginx
+Synopsis
+========
+
+```lua
+# nginx.conf
+
 http {
-    include       mime.types;
-    default_type  application/octet-stream;
+    lua_package_path '/path/to/nginx-multi-disk/?.lua;;';
 
-    # set the data file path
-    geodata_file /root/work/GitHub/ngx_geo_mod/top20.geo;
-    # Get the IP address from the URL, only for testing.
-    ip_from_url on;
-    # Get the IP address from the request header, set to on when front-end have proxy.
-    ip_from_head on;
-    # Set the trusted proxy address. when the ip_from_head is true to used
-    proxies 127.0.0.1/24;
-    proxies_recursive on;
+    init_worker_by_lua '
+        local multidir = require("resty.multidir")
+        multidir.init({["/data/disk01"]=2, ["/data/disk02"]=1}, "/data/cache")
+    ';
 
-    # used variables in access log.
-    log_format  main  '$remote_addr@$http_x_province $http_x_city '
-                      '$http_x_isp [$time_local] "$request" '
-                      '$status $body_bytes_sent "$http_referer" '
-                      '"$http_user_agent" "$http_x_forwarded_for"';
-    access_log  logs/access.log  main;
-
-    # Use the geo 
-	mm_geo on;
     server {
-        listen       80;
-        server_name  localhost;
-        location /area {
-            # used variables in module
-        	echo "      ip: $http_x_ip";
-        	echo "province: $http_x_province";
-        	echo "    city: $http_x_city";
-        	echo "     isp: $http_x_isp";
+        ...
+        # Get file storage directory, write files to the disk use
+        location = /getsavedir {
+            set_by_lua $root_dir '
+                if ngx.var.arg_url == nil or ngx.var.arg_url == "" then
+                    return ""
+                end
+                local multidir = require "resty.multidir"
+                local url = ngx.var.arg_url or ""
+                local root_dir, x_cache = multidir.get_path_by_uri(url)
+                ngx.header["X-Cache"] = x_cache
+                ngx.log(ngx.INFO, "set root_dir:", root_dir)
+                return root_dir                
+            ';
+            root $root_dir;
+
+            content_by_lua '                
+                local url = ngx.var.arg_url or ""
+                ngx.say(ngx.var.document_root .. url)
+            ';
         }
 
-        location /not_used {
-            # do not use the geo
-            mm_geo off;
-            echo "$http_x_province";
+        # Download File
+        location / {
+            set_by_lua $root_dir '
+                local multidir = require "resty.multidir"
+                local root_dir, x_cache = multidir.get_path_by_uri(ngx.var.uri)
+                ngx.header["X-Cache"] = x_cache
+                ngx.log(ngx.INFO, "set root_dir:", root_dir)
+                return root_dir                
+            ';
+            root $root_dir;
         }
     }
 }
 
 ```
-# Compatibility
-This module is compatible with the following version of nginx:
-* 1.7.x (last tested: 1.7.4)
-* 1.6.x (last tested: 1.6.1)
-* 1.4.x (last tested: 1.4.7)
-* 1.2.x (last tested: 1.2.9)
-* 1.0.x (last tested: 1.0.15)
 
-# Installation
-```shell
-# echo-nginx-module is for testing only,  this module does not depend on it.
-cd nginx-1.x.x
-./configure --add-module=path/to/ngx_geo_mod \
-            --add-module=path/to/echo-nginx-module
-make
-make install
+Description
+===========
+The standard nginx default is not supported by multi directory (multi disk), the need to do raid or other ways to support. The library is to let nginx support multi directory and cache directory support. Multi directory selection using the consistency of Hash. support weight settings. This module requires ngx_lua.
+
+
+Methods
+=======
+
+Load module
+
+* To use the library, the first to set the ngx_lua's environment variable:
+
+```lua
+lua_package_path '/path/to/nginx-multi-disk/?.lua;;';
 ```
 
-# Compile The GEO Compiler
-```shell
-cd path/to/ngx_geo_mod
-make
->gcc -g geodata_compiler.c array.c -o geoc
->gcc -D_TOOLS_ -g geodata.c -o geot
->gcc -g -Werror geodata.c -fPIC -shared -o libgeo.so
-```
-* geoc: is the geo data compiler.
-* geot: is test program for the geo data.
-* libgeo.so is dynamic library.
+* Need to load the module with require to a local variable:
 
-# Directives
-* [geodata_file](#geodata_file)
-* [mm_geo](#mm_geo)
-* [ip_from_url](#ip_from_url)
-* [ip_from_head](#ip_from_head)
-* [proxies](#proxies)
-* [proxies_recursive](#proxies_recursive)
-
-geodata_file
-----------
-**syntax:** *geodata_file &lt;path to binary geodata file&gt;*
-
-**default:** *--*
-
-**context:** *http*
-
-Specified the GEO data file path. The data file using geoc compiled.[Compile Geo Data File](#compile-geo-data-file)
-
-mm_geo
-----------
-**syntax:** *mm_geo &lt;on | off&gt;*
-
-**default:** *off*
-
-**context:** *http*,*server*,*location*,*location if*
-
-Open or close the geo module. If open the GEO module, the HTTP request header will add 4 custom headers:
-* x-province *province info*
-* x-city *city info*
-* x-isp *ISP info*
-* x-ip *IP*
-
-Those request heads can be used in other modules, See also: [Variable Usage](#variable-usage)。
-
-ip_from_url
-----------
-**syntax:** *ip_from_url &lt;on | off&gt;*
-
-**default:** *off*
-
-**context:** *http*
-
-If set to on, module can get IP info by request args,  the instruction is mainly used for testing.
-if set to on, can set the IP info by http args *ip*, such as： `http://server/url?ip=192.168.1.40 `
-
-
-ip_from_head
-----------
-**syntax:** *ip_from_head &lt;on | off&gt;*
-
-**default:** *off*
-
-**context:** *http*
-
-If set to on, module can get IP info by Request Header “X-Real-IP” or “X-Forwarded-For”, When the nginx front is an agent you can use this option.
-
-
-proxies
-----------
-**syntax:** *proxies &lt;address | CIDR&gt;*
-
-**default:** *--*
-
-**context:** *http*
-Define trusted addresses. When a request comes from a trusted address, an address from the “X-Forwarded-For” request header field will be used instead.
-
-proxies_recursive
-----------
-**syntax:** *proxies_recursive &lt;on | off&gt;*
-
-**default:** *off*
-
-**context:** *http*
-
-If recursive search is disabled, the original client address that matches one of the trusted addresses is replaced by the last address sent in the request header field defined by the real_ip_header directive.
-
-If recursive search is enabled, the original client address that matches one of the trusted addresses is replaced by the last non-trusted address sent in the request header field.
-
-# Get The IP Order
-The GEO module to obtain IP address in the following orders:
-* if ip_from_url set to on, get IP info from http get args “ip”。
-* if ip_from_head set to on,get IP info from request head “X-Real-IP”，if not, from request head “X-Forwarded-For”.
-* Otherwise, the use IP of socket.
-
-# Variable Usage
-Instruction mm_geo set to on, If find the geo info,  4 geo info will be added to the request headers。Those request headers can be used in other modules, Used for $http_HEADER-NAME.
-
-* Used in access log:
-
-```nginx
-log_format  main  '$http_x_province $http_x_city $http_x_isp xxxx';
+```lua
+local multidir = require("resty.multidir")
 ```
 
-* Used in echo module:
 
-```nginx
-location /area {
-    # used variables in module
-	echo "      ip: $http_x_ip";
-	echo "province: $http_x_province";
-	echo "    city: $http_x_city";
-	echo "     isp: $http_x_isp";
-}
-```
+init
+---
+* `syntax: multidir.init(multi_dir_table, cachedir)`
 
-# Compile Geo Data File
-##### Geo Data File Format
-Before using the compiler GEO, prepare text format data file. The file format is as follows:
-```
-################# comment ##################
-1.2.3.0  1.2.3.255   BeiJing   BeiJing Unicom
-1.2.4.0  1.2.4.255   BeiJing   BeiJing Telecom
-1.2.5.0  1.3.5.255   BeiJing   BeiJing Mobile
-2.1.1.0  2.1.2.255   HuBei Wuhan Unicom
-```
-* # comments
-* Data has 5 columns，Respectively for：IP-begin，IP-end，Province，City，ISP。Between the columns are divided by one or more spaces(or Tab)。
-* IP data must be sorted by ip. Otherwise you will get a compiler error. Note: a  IP segment can not contain anther IP segment.
+Initialize multi directory module
 
-##### Compile Data File
-```shell
-./geoc geodata.txt
---------- Compile geodata.txt OK
---------- Output: geodata.geo
-```
-After compilation, datafile.geo can be used for mm_geo module.
+* `multi_dir_table` 
+Specify the storage directory and directory weights. You can only give a directory, default weight is 1.
+    * initialization with weights:  `multidir.init({["dir01"]=weight, ["dir02"]=weight})`
+    * initialization without weights:  `multidir.init({"dir01""dir02"})`
+* `cachedir`
+Specify the cache directory, which can be empty. 
+After specifying the directory, when the HTTP request is coming, if the cache directory contains the request file, return the cache directory, and then read file date from the cache directory.
 
-##### Test Binary GEO Data File By geot
-```shell
-./geot geodata.geo
-Input a ip:1.2.4.1
-> [1.2.4.1] -----------  [1.2.4.0-1.2.4.255 BeiJing BeiJing Telecom]
-```
+
+Prerequisites
+=============
+
+* [LuaJIT](http://luajit.org) 2.0+
+* [ngx_lua](https://github.com/chaoslawful/lua-nginx-module) 0.8.10+
 
 Authors
 =======
 
-* liuxiaojie (刘小杰)  <jie123108@gmail.com>
+* liuxiaojie (��С��)  <jie123108@163.com>
 
 [Back to TOC](#table-of-contents)
 
@@ -245,6 +114,6 @@ Copyright & License
 
 This module is licenced under the BSD license.
 
-Copyright (C) 2014, by liuxiaojie (刘小杰)  <jie123108@163.com>
+Copyright (C) 2014, by liuxiaojie (��С��)  <jie123108@163.com>
 
 All rights reserved.
