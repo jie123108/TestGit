@@ -137,7 +137,7 @@ make install
 * [shmap_size] (#shmap_size) 
 * [shmap_exptime] (#shmap_exptime) 
 * [request_stats] (#request_stats) 
-* [request_stats_query] (# request_stats_query) 
+* [request_stats_query] (#request_stats_query) 
 
 shmap_size
 ----------
