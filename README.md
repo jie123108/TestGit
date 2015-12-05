@@ -1,352 +1,414 @@
-Name
-====
+# Nginx statistics module 
+   ngx_request_stats is a statistical nginx module. Statistical item is configurable, and can count different virtual hosts, different URL. You can request statistics including the number of times of each status code, the flowing output of the accumulated information, the average processing time, and so on. 
+   
+[中文版说明](README-cn.md)
+# Table of Contents 
 
-lua-resty-bloomd -  Is a client library based on ngx_lua to interface with bloomd servers(https://github.com/armon/bloomd)
+* [Sample configuration] (#Sample configuration) 
+* [Nginx Compatibility] (#nginx compatibility) 
+* [Module compilation] (# module compilation) 
+* [Module variables] (# module variables) 
+* [Module directive] (# module instructions) 
+     * [Shmap_size] (# shmap_size) 
+     * [Shmap_exptime] (# shmap_exptime) 
+     * [Request_stats] (# request_stats) 
+     * [Request_stats_query] (# request_stats_query) 
+* [Statistics Query] (# statistical queries) 
+* [Text Format] (# text format) 
+* [Html format] (# html format) 
+  * [Json format] (# json format) 
+* [Query and the query items cleared] (# query and the query items cleared) 
+* [Check one statistical item] (# query certain statistical term) 
+* [Scoping] (# scope description) 
+* [Simple test script] (# simple script to test) 
+* [Related modules] (# related modules) 
 
-Table of Contents
-=================
+# Sample configuration 
+```nginx 
+http {
+	request_stats statby_host "$host";	
+	shmap_size 32m;
+	shmap_exptime 2d;
 
-* [Name](#name)
-* [Status](#status)
-* [Synopsis](#synopsis)
-* [Methods](#methods)
-    * [new](#new)
-    * [drop](#drop)
-    * [close](#close)
-    * [clear](#clear)
-    * [check](#check)
-    * [checks](#checks)
-    * [set](#set)
-    * [sets](#sets)
-    * [info](#info)
-    * [flush](#flush)
-* [Installation](#installation)
-* [Authors](#authors)
-* [Copyright and License](#copyright-and-license)
+	server {
+		listen 81;
+		server_name localhost;
+		location / {
+			echo "byhost:$uri";
+		}
+		location /404 {
+			return 404;
+		}
+	}
+	
+	server {
+		listen       80;
+		server_name  localhost;
 
-Status
-======
+		location /stats {
+			request_stats off; #do not stats.
+			request_stats_query on;
+			allow 127.0.0.1;
+			allow 192.168.0.0/16;
+			deny all;
+		}
 
-This library is production ready.
+		location /byuri {
+			request_stats statby_uri "uri:$uri";
+			echo "byuri: $uri";
+		}
 
-Synopsis
-========
-```lua
-    lua_package_path "/path/to/lua-resty-bloomd/lib/?.lua;;";
+		location /byarg {
+			echo_sleep 0.005;
+			request_stats statby_arg "clitype:$arg_client_type";		
+			echo "login $args";
+		}
+		
+		location /byarg/404 {
+			request_stats statby_arg "clitype:$arg_client_type";		
+			return 404;
+		}
 
-    server {
-        location /test {
-            content_by_lua '
-            local bloomd = require("resty.bloomd")
-            
-            local function debug(name, ok, err)
-            	if type(err) == 'table' then
-            		local t = {}
-            		for k, v in pairs(err) do 
-            			table.insert(t, k .. ":" .. tostring(v))
-            		end
-            		err = table.concat(t, ",")
-            	end
-            	ngx.say(string.format("%15s -- ok: %5s, err: %s", name, tostring(ok), tostring(err)))
-            end
-            -- create a new instance and connect to the bloomd(127.0.0.1:8673)
-            local filter_obj = bloomd:new("127.0.0.1", 8673, 2000)
-            local function test_main()
-            	local filter_name = "my_filter"
-            	local capacity = 100001
-            	local probability = 0.001
-            	-- create a filter named filter_name
-            	local ok, err = filter_obj:create(filter_name, capacity, probability)
-            	debug("create-new", ok, err)
-            	assert(ok == true)
-            	-- assert(err == "Done", "err ~= 'Done'")
-            
-            	-- create a filter, the name is exist
-            	local ok, err = filter_obj:create(filter_name, capacity, probability)
-            	debug("create-exist", ok, err)
-            	assert(ok == true)
-            	assert(err == "Exists")
-            
-            	-- set a key, New
-            	local ok, err = filter_obj:set(filter_name, 'my_key')
-            	debug("set-new", ok, err)
-            	assert(ok==true)
-            	assert(err == "Yes")
-            
-            	-- set a key, Exist
-            	local ok, err = filter_obj:set(filter_name, 'my_key')
-            	debug("set-exist", ok, err)
-            	assert(ok==true)
-            	assert(err == "No")
-            
-            	-- check a key, Exist
-            	local ok, err = filter_obj:check(filter_name, 'my_key')
-            	debug("check-exist", ok, err)
-            	assert(ok==true)
-            	assert(err == "Yes")
-            
-            	-- check a key, Not Exist
-            	local ok, err = filter_obj:check(filter_name, 'this_key_not_exist')
-            	debug("check-not-exist", ok, err)
-            	assert(ok==true)
-            	assert(err == "No")
-            
-            	-- flush a filter
-            	local ok, err = filter_obj:flush(filter_name)
-            	debug("flush", ok, err)
-            	assert(ok==true)
-            	assert(err == "Done")
-            
-            	-- close a bloom filter
-            	local ok, err = filter_obj:close(filter_name)
-            	debug("close", ok, err)
-            	assert(ok==true)
-            	assert(err == "Done")
-            
-            	-- check a key, Exist
-            	local ok, err = filter_obj:check(filter_name, 'my_key')
-            	debug("check-exist", ok, err)
-            	assert(ok==true)
-            	assert(err == "Yes")
-            
-            
-            	filter_obj:create("my_filter3", capacity, 0.001)
-            	-- list all filter
-            	local ok, filters = filter_obj:list(filter_name)
-            	debug("list", ok, filters)
-            	assert(ok==true)
-            	assert(type(filters)=='table' and #filters==2)
-            	for _,filter in ipairs(filters) do 
-            		if filter.name == filter_name then 
-            			assert(filter.size == 1)
-            		end		
-            	end
-            	filter_obj:drop('my_filter3')
-            
-            	-- Set many items in a filter at once(bulk command)
-            	local ok, status = filter_obj:sets(filter_name, {"a", "b", "c"})
-            	assert(ok)
-            	assert(type(status)=='table')
-            	err = table.concat(status, ' ')
-            	debug("sets", ok, err)
-            	assert(err == "Yes Yes Yes")
-            
-            	local ok, status = filter_obj:sets(filter_name, {"a", "b", "d"})
-            	assert(ok)
-            	assert(type(status)=='table')
-            	err = table.concat(status, ' ')
-            	debug("sets", ok, err)
-            	assert(err == "No No Yes")
-            
-            	-- Checks if a list of keys are in a filter
-            	local ok, status = filter_obj:checks(filter_name, {"a", "x", "c", "d", "e"})
-            	assert(ok)
-            	assert(type(status)=='table')
-            	err = table.concat(status, ' ')
-            	debug("checks", ok, err)
-            	assert(err == "Yes No Yes Yes No")
-            
-            
-            	-- Gets info about a filter
-            	local ok, info = filter_obj:info(filter_name)
-            	debug("info", ok, info)
-            	assert(ok)
-            	assert(type(info)=='table')
-            	assert(info.capacity == capacity)
-            	assert(info.probability == probability)
-            	assert(info.size == 5)
-            
-            	-- drop a filter
-            	local ok, err = filter_obj:drop(filter_name)
-            	debug("drop", ok, err)
-            	assert(ok==true)
-            	assert(err == "Done")
-            
-            
-            	-- Test filter not exist
-            	local ok, err = filter_obj:drop(filter_name)
-            	debug("drop-not-exist", ok, err)
-            	assert(ok==false)
-            	assert(err == "Filter does not exist")
-            
-            
-            	-- create, close and clear a bloom filter, my_filter2 is still in disk.
-            	local ok, err = filter_obj:create("my_filter2", 10000*20, 0.001)
-            	debug("create-new", ok, err)
-            	assert(ok == true)
-            	assert(err == "Done", "err ~= 'Done'")
-            	local ok, err = filter_obj:close("my_filter2")
-            	debug("close", ok, err)
-            	assert(ok==true)
-            	assert(err == "Done")
-            	local ok, err = filter_obj:clear("my_filter2")
-            	debug("clear", ok, err)
-            	assert(ok==true)
-            	assert(err == "Done")
-            
-            	ngx.say("--------- all test ok --------------")
-            end
-            local ok, err = pcall(test_main)
-            if not ok then
-            	filter_obj:close("my_filter")
-            	filter_obj:close("my_filter2")
-            	filter_obj:close("my_filter3")
-            	assert(ok, err)
-            end
-            ';
-        }
-    }
+		location /byuriarg {
+			request_stats statby_uriarg "$uri?$arg_from";	
+			echo "$uri?$args";
+		}
+
+		location /byhttpheaderin {
+			request_stats statby_headerin "header_in:$http_city";
+			echo "city: $http_city";
+		}
+		
+		location /byhttpheaderout/ {
+			request_stats statby_headerout "cache:$sent_http_cache";
+			proxy_pass http://127.0.0.1:82;
+		}
+	}
+  server {
+	listen       82;
+	server_name  localhost;
+	location /byhttpheaderout/hit {
+		add_header cache hit;
+		echo "cache: hit";
+	}
+	location /byhttpheaderout/miss {
+		add_header cache miss;
+		echo "cache: miss";
+	}
+  }
+}
 ```
 
-Methods
-=======
+# Nginx Compatibility 
+This module is compatible with the following versions nginx: 
+* 1.7.x (last tested: 1.7.4) 
+* 1.6.x (last tested: 1.6.1) 
+* 1.4.x (last tested: 1.4.7) 
+* 1.2.x (last tested: 1.2.9) 
+* 1.0.x (last tested: 1.0.15) 
 
-[Back to TOC](#table-of-contents)
-new
----
-`syntax: filter_obj = bloomd:new(host, port, timeout)`
 
-Create a new bloom filter object.
-* IN: the `host` is the bloomd's host, default is '127.0.0.1'.
-* IN: the `port` is the bloomd's port, default is 8673.
-* IN: the `timeout` is the timeout time in ms, default is 5000ms.
-
-create
----
-`syntax: ok, err = filter_obj:create(filter_name, capacity, prob, in_memory)`
-
-Create a new filter
-* IN: the `filter_name` is the name of the filter, and can contain the characters a-z, A-Z, 0-9, ., _.
-* IN: the `capacity` is provided the filter will be created to store at least that many items in the initial filter. default is 0.001.
-* IN: the `prob` is maximum false positive probability is provided. 
-* IN: the 'in_memory' is to force the filter to not be persisted to disk.
-
-list
----
-`syntax: ok, filters = filter_obj:list(filter_prefix)`
-
-List all filters or those matching a prefix.<br/>
-* OUT: the `ok` is list status.
-* OUT: the `filters` is a Lua table holding all the matched filter.
-
-```lua
-for _,filter in ipairs(filters) do 
-	ngx.say(filter.name, ",", filter.probability, ",", 
-	        filter.storage, ",", filter.capacity, ",",filter.size)
-end
+# Module Compiler 
+```
+# echo-nginx-module just need to use for the test, this module does not depend on it. 
+cd nginx-1.x.x 
+./configure --add-module = path / to / ngx_request_stats \ 
+--add-module = path / to / echo-nginx-module-0.49 / 
+make 
+make install 
 ```
 
-drop
----
-`syntax: ok, err = filter_obj:drop(filter_name)`
+# Module variables 
+* Nginx_core module supports variable: http://nginx.org/en/docs/http/ngx_http_core_module.html#variables 
+* This module variables 
+     * uri_full: redirect before uri. 
+     * status: Http response codes 
+     * date: to the current date in the format: 1970-09-28 
+     * time: the current time format: 12: 00:00 
+     * year: of the current year 
+     * month: current month 
+     * day: of the current date 
+     * hour: current hour 
+     * minute: current points 
+     * second: current second 
 
-Drop a filters (Deletes from disk). On Success Returns ok:true, err:'Done'
+# Module instruction 
+* [shmap_size] (# shmap_size) 
+* [shmap_exptime] (# shmap_exptime) 
+* [request_stats] (# request_stats) 
+* [request_stats_query] (# request_stats_query) 
 
-close
----
-`syntax: ok, err = filter_obj:close(filter_name)`
+shmap_size 
+---------- 
+**syntax:** *shmap_size &lt;size&gt;*
 
-Closes a filter (Unmaps from memory, but still accessible). On Success Returns ok:true, err:'Done'
+**default:** *32m*
 
+**context:** *http*
 
-clear
----
-`syntax: ok, err = filter_obj:clear(filter_name)`
-
-Clears a filter from the lists (Removes memory, left on disk)
-
-
-check
----
-`syntax: ok, status = filter_obj:check(filter_name, key)`
-
-Check if a key is in a filter. 
-* IN: the `status` is 'Yes'(`key` is exists in filter) or 'No'(if `key` is not exists in filter).
-
-checks
----
-`syntax: ok, status = filter_obj:checks(filter_name, keys)`
-
-Checks if a list of keys are in a filter
-* IN: the `keys` is a table contains some keys.
-* OUT: the `status` is a table contains each key's status('Yes' or 'No').
-
-set
----
-`syntax: ok, status = filter_obj:set(filter_name, key)`
-
-Set an item in a filter
-* OUT: the `status` is 'Yes'(`key` is success set to the filter) or 'No'(`key` is exists in the filter).
+You can define shared memory size in k, m, g and other units KB, MB, GB. 
 
 
-sets
----
-`syntax: ok, status = filter_obj:sets(filter_name, keys)`
+shmap_exptime 
+---------- 
+**syntax:** *shmap_exptime &lt;expire time&gt;*
 
-Set many items in a filter at once
-* IN: the `keys` is a table contains some keys.
-* OUT: the `status` is a table contains each key's set status('Yes' or 'No').
+**default:** *2d*
 
-info
----
-`syntax: ok, info = filter_obj:info(filter_name)`
+**context:** *http*
 
-Gets info about a filter
-* OUT: the `info` is a table like `{in_memory:1,set_misses:3,checks:8,capacity:100001, probability:0.001,page_outs:1,size:5,check_hits:5,
-storage:240141,page_ins:1,set_hits:5,check_misses:3,sets:8}`.
+Definition of statistical information in the shared memory expiration time. time unit is second, you can use m, h, d, etc. for minutes, hours, days. 
 
-flush
----
-`syntax: ok, err = filter_obj:flush(filter_name)`
+request_stats 
+---------- 
+** syntax: ** * request_stats &lt;stats-name&gt; &lt;stats-key&gt; * 
 
-Flush a specified filter. 
+** default: ** * no * 
 
-[Back to TOC](#table-of-contents)
+** context: ** * http, server, location, location if * 
 
-Installation
-============
+Statistics definition format, use the `request_stats off;` can close a http, server, under the statistical location. 
+* Stats-name is the name of the statistics (category), according to the function arbitrarily defined, in the back of the query command, you can specify the stats-name query specified statistical type. 
+* Stats-key definition of statistical key. key can be used in a variety of variables, and a string, so that different requests will be recorded separately. [Supported variable] (# Supported variables) one lists all the supported variables. ** Note: Do not use too randomized variables as key, this will cause each request has a statistical information, which take up a lot of shared memory space ** 
 
-You need to compile [ngx_lua](https://github.com/chaoslawful/lua-nginx-module/tags) with your Nginx.
+#### Statistics by host 
+```nginx 
+request_stats statby_host "$host"; 
+```
+#### Statistics by uri 
+```nginx 
+request_stats statby_uri "uri: $uri"; # also adds uri: prefix. 
+```
+#### Statistics by request parameters (GET)
+```nginx 
+request_stats statby_arg "clitype: $arg_client_type"; # press parameters client_type statistics 
+```
 
-You need to configure
-the [lua_package_path](https://github.com/chaoslawful/lua-nginx-module#lua_package_path) directive to
-add the path of your `lua-resty-bloomd` source tree to ngx_lua's Lua module search path, as in
+#### Statistics by uri and parameters
+```nginx 
+request_stats statby_uriarg "$uri $arg_from?"; 
+```
 
-    # nginx.conf
-    http {
-        lua_package_path "/path/to/lua-resty-bloomd/lib/?.lua;;";
-        ...
-    }
+### Statistics by request header 
+```nginx 
+request_stats statby_uriarg "header_in: $http_city"; 
+```
+### Statistics by response header
+```nginx 
+request_stats statby_uriarg "cache: $sent_http_cache"; 
+```
 
-and then load the library in Lua:
+request_stats_query 
+---------- 
+** syntax: ** * request_stats_query &lt; on &gt; * 
 
-    bloomd = require "resty.bloomd"
+** default: ** * off * 
 
-[Back to TOC](#table-of-contents)
+** context: ** * location * 
 
-Authors
-=======
+Open statistical query module. When turned on, you can have access to the statistics by the location. 
+Statistics Query module has three optional arguments: 
+* Clean: is true that the inquiry statistics and statistical items cleared for this query. 
+* Fmt: optional values??: html, json, text, respectively, html, json, text format. The default format is text. html browser can be viewed directly, allowing you to json format using python scripting language parsing results. text format in order to facilitate inquiries, and processed through awk and other shell commands. 
+* Stats_name: To count name queries, the statistics must be a name in the first parameter request_stats instructions specified in the stats-name. When this parameter is not specified, query all statistics. 
 
-Xiaojie Liu <jie123108@163.com>。
 
-[Back to TOC](#table-of-contents)
+Minimum sample: 
+```nginx 
+location / stats {
+request_stats_query on; 
+} 
+```
+Statistics Query see [statistical inquiry] (#statistical queries) a 
 
-Copyright and License
-=====================
+Statistical quiry 
+-------------- 
+&nbsp; &nbsp; after opening request_stats_query, statistical results can be accessed via the corresponding uri, for example in the previous section configuration, access 
+http://192.168.1.201/stats can display relevant statistics. ** 192.168.1.201 is my host ** 
 
-This module is licensed under the BSD license.
+Query results typically has the following fields: 
+* Key, request_stats defined key 
+* Stats_time, statistics Start Time 
+* Request, the number of requests 
+* Recv, receiving the number of bytes 
+* Number of sent, bytes sent 
+* Avg_time, request the average time (in milliseconds) 
+* Stats, http response code, where 499 is the rear end of the overtime. 
 
-Copyright (C) 2015, by Xiaojie Liu <jie123108@163.com>
+&nbsp; &nbsp; ** the following query results are in operation [simple test script] after (# simple script to test) section of the test scripts produced. ** 
 
-All rights reserved.
+#### Text Format 
+http://192.168.1.201/stats 
+```bash 
+# Optional parameters: 
+# Clean = true, query stats and set the all query data to zero in the share memory. 
+# Fmt = [html | json | text], The default is text. 
+# Stats_name = [statby_host | statby_uri | statby_arg | statby_uriarg | statby_headerin | statby_headerout], The default is all. 
+key stats_time request recv sent avg_time stat 
+localhost 2014-08-31 22:16:47 1 0 0 0 400: 1 
+127.0.0.1 2014-08-31 22:16:29 80 14687 15854 0 200: 60, 404: 20 
+cache: miss 2014-08-31 22:16:29 20 3560 3800 0 200: 20 
+cache: hit 2014-08-31 22:16:29 20 3540 3760 0 200: 20 
+header_in: beijing 2014-08-31 22:16:29 20 3740 3580 0 200: 20 
+header_in: shengzheng 2014-08-31 22:16:29 20 3800 3660 0 200: 20 
+header_in: shanghai 2014-08-31 22:16:29 20 3760 3600 0 200: 20 
+? / byuriarg mobile_cli 2014-08-31 22:16:29 20 3640 3840 0 200: 20 
+? / byuriarg pc_cli 2014-08-31 22:16:29 20 3560 3760 0 200: 20 
+? / byuriarg partner 2014-08-31 22:16:29 20 3580 3780 0 200: 20 
+clitype: android 2014-08-31 22:16:29 40 7400 10280 2 200: 20, 404: 20 
+clitype: ios 2014-08-31 22:16:29 20 3580 3760 5 200: 20 
+clitype: pc 2014-08-31 22:16:29 20 3560 3740 5 200: 20 
+uri: / byuri / 14858 2014-08-31 22:16:30 1 169 186 0 200: 1 
+uri: / byuri / 10475 2014-08-31 22:16:30 1 169 186 0 200: 1 
+... 
+```
+#### Html format 
+http://192.168.1.201/stats?fmt=html 
+! [Query interface] (view_html.png) 
 
-Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+#### Json format 
+http://192.168.1.201/stats?fmt=json 
+```json 
+{"Optional parameters": {
+"clean": "clean = true, query stats and set the all query data to zero in the share memory.", 
+"fmt": "fmt = [html | json | text], The default is text.", 
+"stats_name": ["statby_host | statby_uri | statby_arg | statby_uriarg | statby_headerin | statby_headerout"] 
+}, 
+"request-stat": {
+"localhost": {"stats_time": "2014-08-31 22:16:47", "request": 2, "recv": 0, "sent": 0, "avg_time": 0, "stat": {"400": 2}}, 
+"127.0.0.1": {"stats_time": "2014-08-31 22:16:29", "request": 80, "recv": 14687, "sent": 15854, "avg_time": 0, "stat ": {" 200 ": 60," 404 ": 20}}, 
+"cache: miss": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3560, "sent": 3800, "avg_time": 0, "stat ": {" 200 ": 20}}, 
+"cache: hit": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3540, "sent": 3760, "avg_time": 0, "stat ": {" 200 ": 20}}, 
+"header_in: beijing": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3740, "sent": 3580, "avg_time": 0, "stat ": {" 200 ": 20}}, 
+"header_in: shengzheng": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3800, "sent": 3660, "avg_time": 0, "stat ": {" 200 ": 20}}, 
+"header_in: shanghai": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3760, "sent": 3600, "avg_time": 0, "stat ": {" 200 ": 20}}, 
+"? / byuriarg mobile_cli": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3640, "sent": 3840, "avg_time": 0, "stat ": {" 200 ": 20}}, 
+"? / byuriarg pc_cli": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3560, "sent": 3760, "avg_time": 0, "stat ": {" 200 ": 20}}, 
+"? / byuriarg partner": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3580, "sent": 3780, "avg_time": 0, "stat ": {" 200 ": 20}}, 
+"clitype: android": {"stats_time": "2014-08-31 22:16:29", "request": 40, "recv": 7400, "sent": 10280, "avg_time": 2, "stat ": {" 200 ": 20," 404 ": 20}}, 
+"clitype: ios": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3580, "sent": 3760, "avg_time": 5, "stat ": {" 200 ": 20}}, 
+"clitype: pc": {"stats_time": "2014-08-31 22:16:29", "request": 20, "recv": 3560, "sent": 3740, "avg_time": 5, "stat ": {" 200 ": 20}}, 
+"uri: / byuri / 14858": {"stats_time": "2014-08-31 22:16:30", "request": 1, "recv": 169, "sent": 186, "avg_time": 0 , "stat": {"200": 1}}, 
+"uri: / byuri / 10475": {"stats_time": "2014-08-31 22:16:30", "request": 1, "recv": 169, "sent": 186, "avg_time": 0 , "stat": {"200": 1}} 
+} 
+} 
+```
+#### Queries and the query items cleared 
+http://192.168.1.201/stats?clean=true 
+After use clean = true parameter, this query results are still normal, but all result items will be cleared. 
 
-* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+#### Discover one statistical item 
+* Http://192.168.1.201/stats?stats_name=statby_headerin 
 
-* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+```text 
+key stats_time request recv sent avg_time stat 
+header_in: beijing 2014-08-31 22:16:29 20 3740 3580 0 200: 20 
+header_in: shengzheng 2014-08-31 22:16:29 20 3800 3660 0 200: 20 
+header_in: shanghai 2014-08-31 22:16:29 20 3760 3600 0 200: 20 
+```
+* Http://192.168.1.201/stats?stats_name=statby_uri 
 
-THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+```text 
+key stats_time request recv sent avg_time stat 
+uri: / byuri / 14858 2014-08-31 22:16:30 1 169 186 0 200: 1 
+uri: / byuri / 10475 2014-08-31 22:16:30 1 169 186 0 200: 1 
+uri: / byuri / 20090 2014-08-31 22:16:30 1 169 186 0 200: 1 
+uri: / byuri / 7054 2014-08-31 22:16:30 1 168 185 0 200: 1 
+uri: / byuri / 31520 2014-08-31 22:16:30 1 169 186 0 200: 1 
+uri: / byuri / 22000 2014-08-31 22:16:30 1 169 186 0 200: 1 
+uri: / byuri / 24415 2014-08-31 22:16:30 1 169 186 0 200: 1 
+uri: / byuri / 20883 2014-08-31 22:16:30 1 169 186 0 200: 1 
+```
 
-[Back to TOC](#table-of-contents)
+# Scope Description 
+> request_stats directive scope are: 
+`NGX_HTTP_MAIN_CONF | NGX_HTTP_SRV_CONF | NGX_HTTP_LOC_CONF | NGX_HTTP_LIF_CONF`, ie request_stats instructions at http, server, location, if peers can occur. However, due to this module is a plug-in NGX_HTTP_LOG_PHASE stage, a request will have a configuration item is valid. When they appear in different levels, only the innermost will start effect. Of course, if there are multiple request_stats instruction with the inside layer, a plurality will have effect. For example: 
+```
+http {
+     # ... 
+request_stats byhost "$host"; 
+server {
+listen 80; 
+location / login {
+echo "login"; 
+} 
+location / login_new {
+request_stats byarg "$arg_client_type"; 
+echo "login_new $args"; 
+} 
+} 
+} 
+```
+##### Using the above configuration, if we make the following three requests: 
+```shell 
+curl http://127.0.0.1:80/login 
+curl http://127.0.0.1:80/login_new?client_type=pc 
+curl http://127.0.0.1:80/login_new?client_type=android 
+```
+##### Statistical results would be: 
+```
+key request recv sent avg_time 
+android 1 187 210 0 
+pc 1 182 205 0 
+127.0.0.1 1 163 185 0 
+```
+/ login_new following request, since there is already a statistic called byarg will not repeat the statistics to byhost inside. Sometimes this may not be the result you want. If you want / login_new also statistics into byhost inside, you can add a request_stats instructions / login_new after the new configuration below: 
+```
+http {
+     # ... 
+request_stats byhost "$host"; 
+server {
+listen 80; 
+location / login {
+echo "login"; 
+} 
+location / login_new {
+request_stats byarg "$arg_client_type"; 
+request_stats byhost "$host"; 
+echo "login_new $args"; 
+} 
+} 
+} 
+```
+After ##### retest results are as follows: 
+```
+key request recv sent avg_time 
+127.0.0.1 3 532 600 0 
+android 1 187 210 0 
+pc 1 182 205 0 
+```
 
+
+
+#### Simple test script 
+
+This test corresponds to the configuration in the Synopsis section. 
+Test depends on the curl command, make sure your system has been installed curl command line. 
+[Test.sh] (test.sh) source code directory 
+```bash 
+for ((i = 0; i <20; i ++)); do 
+curl http://127.0.0.1:81/$RANDOM 
+curl http://127.0.0.1:81/404/$RANDOM 
+curl http://127.0.0.1:80/byuri/$RANDOM 
+curl http://127.0.0.1:80/byarg?client_type=pc 
+curl http://127.0.0.1:80/byarg?client_type=ios 
+curl http://127.0.0.1:80/byarg?client_type=android 
+curl http://127.0.0.1:80/byarg/404?client_type=android 
+curl http://127.0.0.1:80/byuriarg?from=partner 
+curl http://127.0.0.1:80/byuriarg?from=pc_cli 
+curl http://127.0.0.1:80/byuriarg?from=mobile_cli 
+curl http://127.0.0.1:80/byhttpheaderin -H "city: shanghai" 
+curl http://127.0.0.1:80/byhttpheaderin -H "city: shengzheng" 
+curl http://127.0.0.1:80/byhttpheaderin -H "city: beijing" 
+curl http://127.0.0.1:80/byhttpheaderout/hit 
+curl http://127.0.0.1:80/byhttpheaderout/miss 
+done; 
+
+```
+
+#### Related modules 
+&nbsp; &nbsp; &nbsp; &nbsp; This module all statistical information is stored in memory, require the user to obtain relevant information, and then store the summary. On another project [ngx_req_stat] (https://github.com/jie123108/ngx_req_stat) is a request for statistics module, but it's more powerful, not only key is customizable, even the statistical value also can be customized . And statistical information stored in mongodb in. Project Address: (https://github.com/jie123108/ngx_req_stat) 
+
+Contact the author: 
+===== 
+jie123108@163.com
