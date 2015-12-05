@@ -2,7 +2,7 @@
 
   ngx_request_stats是一个nginx统计模块，其统计项是可配置的，并且可以统计不同的虚拟主机，不同的URL。可以统计的包括请求次数，各个状态码的次数，输出的流量累计信息，平均处理时间等等。
 
-# Table Of Contents
+# Table of contents
 
 * [示例配置](#synopsis)
 * [Nginx兼容性](#compatibility)
@@ -224,7 +224,7 @@ location /stats {
 ```
 统计查询请见[统计查询](#统计查询)一节
 
-Statistics Query
+Statistics-Query
 --------------
 &nbsp;&nbsp;开启request_stats_query后，就可以通过相应的uri访问统计结果，比如上节配置中，访问
 http://192.168.1.201/stats 就可以显示相关统计信息。**192.168.1.201是我的主机**
@@ -269,7 +269,7 @@ uri:/byuri/10475	2014-08-31 22:16:30	1	169	186	0	 200:1
 http://192.168.1.201/stats?fmt=html
 ![查询界面](view_html.png)
 
-#### Json Format
+#### Json format 
 http://192.168.1.201/stats?fmt=json
 ```json
 {"Optional parameters":{
