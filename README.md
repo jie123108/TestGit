@@ -139,7 +139,7 @@ make install
 * [request_stats] (# request_stats) 
 * [request_stats_query] (# request_stats_query) 
 
-shmap_size 
+shmap_size
 ----------
 **syntax:** *shmap_size &lt;size&gt;*
 
@@ -150,7 +150,7 @@ shmap_size
 You can define shared memory size in k, m, g and other units KB, MB, GB. 
 
 
-shmap_exptime 
+shmap_exptime
 ----------
 **syntax:** *shmap_exptime &lt;expire time&gt;*
 
@@ -160,7 +160,7 @@ shmap_exptime
 
 Definition of statistical information in the shared memory expiration time. time unit is second, you can use m, h, d, etc. for minutes, hours, days. 
 
-request_stats 
+request_stats
 ---------- 
 ** syntax: ** * request_stats &lt;stats-name&gt; &lt;stats-key&gt; * 
 
