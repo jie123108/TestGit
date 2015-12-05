@@ -169,9 +169,9 @@ request_stats
 
 **context:** *http, server, location, location if* 
 
-Statistics definition format, use the `request_stats off;` can close a http, server, under the statistical location. 
+Statistics definition format, use the `request_stats off;` can close a statistic under the http, server, location. 
 * Stats-name is the name of the statistics (category), according to the function arbitrarily defined, in the back of the query command, you can specify the stats-name query specified statistical type. 
-* Stats-key definition of statistical key. key can be used in a variety of variables, and a string, so that different requests will be recorded separately. [Supported variable] (#variables) one lists all the supported variables. ** Note: Do not use too randomized variables as key, this will cause each request has a statistical information, which take up a lot of shared memory space ** 
+* Stats-key definition of statistical key. key can be used in a variety of variables, and a string, so that different requests will be recorded separately. [Supported variable] (#variables) one lists all the supported variables. **Note: Do not use too randomized variables as key, this will cause each request has a statistical information, which take up a lot of shared memory space** 
 
 #### Statistics by host 
 ```nginx 
@@ -200,7 +200,7 @@ request_stats statby_uriarg "header_in: $http_city";
 request_stats statby_uriarg "cache: $sent_http_cache"; 
 ```
 
-request_stats_query 
+request_stats_query
 ---------- 
 **syntax:** *request_stats_query &lt; on &gt;* 
 
@@ -211,7 +211,7 @@ request_stats_query
 Open statistical query module. When turned on, you can have access to the statistics by the location. 
 Statistics Query module has three optional arguments: 
 * clean: is true that the query statistics and statistical items cleared for this query. 
-* fmt: optional values: html, json, text, respectively, html, json, text format. The default format is text. html browser can be viewed directly, allowing you to json format using python scripting language parsing results. text format in order to facilitate inquiries, and processed through awk and other shell commands. 
+* fmt: optional values: html, json, text, respectively, html, json, text format. The default format is text. html browser can be viewed directly, allowing you to json format using scripting language(eg. python/php) parsing results. text format in order to facilitate inquiries, and processed through awk and other shell commands. 
 * stats_name: To count name queries, the statistics must be a name in the first parameter request_stats instructions specified in the stats-name. When this parameter is not specified, query all statistics. 
 
 
@@ -221,7 +221,7 @@ location / stats {
 request_stats_query on; 
 } 
 ```
-Statistics Query see [statistical inquiry] (#statistical queries) a 
+Statistics Query see [statistical inquiry] (#statistical-queries) a 
 
 Statistics-Query
 -------------- 
