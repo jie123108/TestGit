@@ -122,7 +122,7 @@ make install
 # Variables
 * nginx_core module supports variable: http://nginx.org/en/docs/http/ngx_http_core_module.html#variables 
 * This module variables 
-     * uri_full: redirect before uri. 
+     * uri_full: uri before redirect. 
      * status: Http response codes 
      * date: current date in the format: 1970-09-28 
      * time: current time in the format: 12: 00:00 
@@ -148,7 +148,8 @@ shmap_size
 **context:** *http*
 
 Define shared memory size.
-The **&lt;size&gt;** argument accepts size units such as k and m,g.
+
+The **&lt;size&gt;** argument accepts size units such as k,m and g.
 
 shmap_exptime
 ----------
@@ -159,6 +160,7 @@ shmap_exptime
 **context:** *http*
 
 Definition of statistical information in the shared memory expiration time. 
+
 The **&lt;expire time&gt;** argument can be an integer, with an optional time unit, like s(second), m(minute), h(hour), d(day). The default time unit is s
 
 request_stats
@@ -170,8 +172,8 @@ request_stats
 **context:** *http, server, location, location if* 
 
 Statistics definition format, use the `request_stats off;` can close a statistic under the http, server, location. 
-* Stats-name is the name of the statistics (category), according to the function arbitrarily defined, in the back of the query command, you can specify the stats-name query specified statistical type. 
-* Stats-key definition of statistical key. key can be used in a variety of variables, and a string, so that different requests will be recorded separately. [Supported variable] (#variables) one lists all the supported variables. **Note: Do not use too randomized variables as key, this will cause each request has a statistical information, which take up a lot of shared memory space** 
+* stats-name is the name of the statistics (category), according to the function arbitrarily defined, in the back of the query command, you can specify the stats-name query specified statistical type. 
+* stats-key definition of statistical key. key can be used the variables, and a string, so that different requests will be recorded separately. [Supported variable] (#variables) one lists all the supported variables. **Note: Do not use too randomized variables as key, this will cause each request has a statistical information, which take up a lot of shared memory space** 
 
 #### Statistics by host 
 ```nginx 
@@ -181,14 +183,14 @@ request_stats statby_host "$host";
 ```nginx 
 request_stats statby_uri "uri: $uri"; # also adds uri: prefix. 
 ```
-#### Statistics by request parameters (GET)
+#### Statistics by get request parameters
 ```nginx 
 request_stats statby_arg "clitype: $arg_client_type"; # press parameters client_type statistics 
 ```
 
 #### Statistics by uri and parameters
 ```nginx 
-request_stats statby_uriarg "$uri $arg_from?"; 
+request_stats statby_uriarg "$uri?$arg_from";	
 ```
 
 ### Statistics by request header 
@@ -233,7 +235,7 @@ Query results typically has the following fields:
 * stats_time, statistics Start Time 
 * request, the number of requests 
 * recv, receiving the number of bytes 
-* number of sent, bytes sent 
+* sent, bytes sent 
 * avg_time, request the average time (in milliseconds) 
 * stats, http response code, where 499 means the backend is timeout. 
 
