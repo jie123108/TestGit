@@ -224,7 +224,7 @@ location /stats {
 	request_stats_query on;
 }
 ```
-统计查询请见[统计查询](#统计查询)一节
+统计查询请见[统计查询](#statistics-query)一节
 
 Statistics-Query
 --------------
@@ -240,7 +240,7 @@ http://192.168.1.201/stats 就可以显示相关统计信息。**192.168.1.201是我的主机**
 * avg_time, 请求平均时间(毫秒)
 * stats, http响应码, 其中499是后端超时了。
 
-&nbsp;&nbsp;**以下所有查询结果都是在运行[简单脚本测试](#简单脚本测试)一节中的测试脚本后产生的。**
+&nbsp;&nbsp;**以下所有查询结果都是在运行[简单脚本测试](#simple-test)一节中的测试脚本后产生的。**
 
 #### Text Format
 http://192.168.1.201/stats
