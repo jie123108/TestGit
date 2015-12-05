@@ -2,7 +2,7 @@
    ngx_request_stats is a statistical nginx module. Statistical item is configurable, and can count different virtual hosts, different URL. You can request statistics including the number of times of each status code, the flowing output of the accumulated information, the average processing time, and so on. 
    
 [中文版说明](README-cn.md)
-# Table of Contents 
+# Table of contents 
 
 * [Synopsis] (#synopsis) 
 * [Compatibility] (#compatibility) 
@@ -17,8 +17,8 @@
     * [text format] (#text-format) 
     * [html format] (#html-format) 
     * [json format] (#json-format) 
-* [Query and the query items cleared] (#query-and-the-query-items-cleared) 
-* [Check one statistical item] (#query-certain-statistical-term) 
+    * [Query and clear] (#query-and-clear) 
+    * [Query By stats_name] (#query-by-status_name) 
 * [Scoping] (#scope) 
 * [Simple test script] (#simple-test) 
 * [Related modules] (#see-also) 
@@ -120,17 +120,17 @@ make install
 ```
 
 # Variables
-* Nginx_core module supports variable: http://nginx.org/en/docs/http/ngx_http_core_module.html#variables 
+* nginx_core module supports variable: http://nginx.org/en/docs/http/ngx_http_core_module.html#variables 
 * This module variables 
      * uri_full: redirect before uri. 
      * status: Http response codes 
-     * date: to the current date in the format: 1970-09-28 
-     * time: the current time format: 12: 00:00 
-     * year: of the current year 
+     * date: current date in the format: 1970-09-28 
+     * time: current time in the format: 12: 00:00 
+     * year: current year 
      * month: current month 
-     * day: of the current date 
+     * day: current date 
      * hour: current hour 
-     * minute: current points 
+     * minute: current minute 
      * second: current second 
 
 # Directives
@@ -147,8 +147,8 @@ shmap_size
 
 **context:** *http*
 
-You can define shared memory size in k, m, g and other units KB, MB, GB. 
-
+Define shared memory size.
+The **&lt;size&gt;** argument accepts size units such as k and m,g.
 
 shmap_exptime
 ----------
@@ -158,19 +158,20 @@ shmap_exptime
 
 **context:** *http*
 
-Definition of statistical information in the shared memory expiration time. time unit is second, you can use m, h, d, etc. for minutes, hours, days. 
+Definition of statistical information in the shared memory expiration time. 
+The **&lt;expire time&gt;** argument can be an integer, with an optional time unit, like s(second), m(minute), h(hour), d(day). The default time unit is s
 
 request_stats
 ---------- 
-** syntax: ** * request_stats &lt;stats-name&gt; &lt;stats-key&gt; * 
+**syntax:** *request_stats &lt;stats-name&gt; &lt;stats-key&gt;* 
 
-** default: ** * no * 
+**default:** *no* 
 
-** context: ** * http, server, location, location if * 
+**context:** *http, server, location, location if* 
 
 Statistics definition format, use the `request_stats off;` can close a http, server, under the statistical location. 
 * Stats-name is the name of the statistics (category), according to the function arbitrarily defined, in the back of the query command, you can specify the stats-name query specified statistical type. 
-* Stats-key definition of statistical key. key can be used in a variety of variables, and a string, so that different requests will be recorded separately. [Supported variable] (# Supported variables) one lists all the supported variables. ** Note: Do not use too randomized variables as key, this will cause each request has a statistical information, which take up a lot of shared memory space ** 
+* Stats-key definition of statistical key. key can be used in a variety of variables, and a string, so that different requests will be recorded separately. [Supported variable] (#variables) one lists all the supported variables. ** Note: Do not use too randomized variables as key, this will cause each request has a statistical information, which take up a lot of shared memory space ** 
 
 #### Statistics by host 
 ```nginx 
@@ -201,15 +202,15 @@ request_stats statby_uriarg "cache: $sent_http_cache";
 
 request_stats_query 
 ---------- 
-** syntax: ** * request_stats_query &lt; on &gt; * 
+**syntax:** *request_stats_query &lt; on &gt;* 
 
-** default: ** * off * 
+**default:** *off* 
 
-** context: ** * location * 
+**context:** *location* 
 
 Open statistical query module. When turned on, you can have access to the statistics by the location. 
 Statistics Query module has three optional arguments: 
-* clean: is true that the inquiry statistics and statistical items cleared for this query. 
+* clean: is true that the query statistics and statistical items cleared for this query. 
 * fmt: optional values: html, json, text, respectively, html, json, text format. The default format is text. html browser can be viewed directly, allowing you to json format using python scripting language parsing results. text format in order to facilitate inquiries, and processed through awk and other shell commands. 
 * stats_name: To count name queries, the statistics must be a name in the first parameter request_stats instructions specified in the stats-name. When this parameter is not specified, query all statistics. 
 
@@ -225,7 +226,7 @@ Statistics Query see [statistical inquiry] (#statistical queries) a
 Statistics-Query
 -------------- 
 &nbsp; &nbsp; after opening request_stats_query, statistical results can be accessed via the corresponding uri, for example in the previous section configuration, access 
-http://192.168.1.201/stats can display relevant statistics. ** 192.168.1.201 is my host ** 
+http://192.168.1.201/stats can display relevant statistics. **192.168.1.201 is my host** 
 
 Query results typically has the following fields: 
 * key, request_stats defined key 
@@ -294,11 +295,11 @@ http://192.168.1.201/stats?fmt=json
 }
 }
 ```
-#### Queries and the query items cleared 
+#### query and clear
 http://192.168.1.201/stats?clean=true 
 After use clean = true parameter, this query results are still normal, but all result items will be cleared. 
 
-#### Discover one statistical item 
+#### Query by status_name
 * http://192.168.1.201/stats?stats_name=statby_headerin 
 
 ```text 
@@ -385,7 +386,7 @@ pc 1 182 205 0
 
 This test corresponds to the configuration in the Synopsis section. 
 Test depends on the curl command, make sure your system has been installed curl command line. 
-[Test.sh] (test.sh) source code directory 
+[test.sh] (test.sh) source code directory 
 ```bash 
 for ((i = 0; i <20; i ++)); do 
 curl http://127.0.0.1:81/$RANDOM 

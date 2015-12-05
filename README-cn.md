@@ -17,7 +17,7 @@
 	* [文本格式](#text-format)
 	* [html格式](#html-format)
  	* [json格式](#json-format)
-	* [查询并且将查询项清零](#query-and-clean)
+	* [查询并且将查询项清零](#query-and-clear)
 	* [查询某一个统计项](#query-by-status_name)
 * [作用域说明](#scope)
 * [简单脚本测试](#simple-test)
@@ -148,7 +148,8 @@ shmap_size
 
 **context:** *http*
 
-定义统计使用的共享内存大小。可以使用k,m,g等单位表示KB,MB,GB。
+定义统计所使用的共享内存大小。
+*&lt;size&gt;*可以使用大小单位，如k,m,g。
 
 
 shmap_exptime
@@ -159,7 +160,8 @@ shmap_exptime
 
 **context:** *http*
 
-定义统计信息在共享内存中的过期时间。单位为秒，可以使用m,h,d等表示分钟，小时，天。
+定义统计信息在共享内存中的过期时间。
+可以使用m,h,d等表示分钟，小时，天。
 
 request_stats
 ----------
@@ -296,7 +298,7 @@ http://192.168.1.201/stats?fmt=json
 }
 }
 ```
-#### Query And Clean
+#### query and clear
 http://192.168.1.201/stats?clean=true
 使用clean=true参数后，本次查询结果依然正常显示，只是所有结果项会被清零。
 
