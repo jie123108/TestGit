@@ -20,7 +20,7 @@
     * [Query and clear] (#query-and-clear) 
     * [Query By stats_name] (#query-by-status_name) 
 * [Scoping] (#scope) 
-* [Simple test script] (#simple-test) 
+* [Simple test script] (#simple-test-script) 
 * [Related modules] (#see-also) 
 
 # Synopsis
@@ -384,7 +384,7 @@ pc 1 182 205 0
 
 
 
-#### Simple test script 
+#### Simple test script
 
 This test corresponds to the configuration in the Synopsis section. 
 Test depends on the curl command, make sure your system has been installed curl command line. 
