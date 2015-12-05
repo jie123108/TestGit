@@ -60,7 +60,7 @@ http {
 
 Description
 ===========
-The standard nginx default is not supported by multi directory (multi disk), the need to do raid or other ways to support. The library is to let nginx support multi directory and cache directory support. Multi directory selection using the consistency of Hash. support weight settings. This module requires ngx_lua.
+The standard nginx default is not supported by multi directory (multi disk), you need to use the disk raid or other way to support. This library is to let nginx support multi directory and cache directory support. Multi directory selection using the consistency Hash. support weight settings. This module requires ngx_lua.
 
 
 Methods
