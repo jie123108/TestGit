@@ -1,119 +1,243 @@
 Name
 ====
 
-nginx-multi-disk - Let nginx support multi directory (multi disk) and cache directory, directory selection algorithm using the consistency of Hash.
+lua-resty-stats - is a statistical module for nginx base on ngx_lua, Statistical key and values are configurable, can use the nginx core's variables and this module's variables. The statistical result store in mongodb.
 
-[÷–Œƒ∞ÊÀµ√˜](README-cn.md)
+Table of Contents
+=================
+
+* [Name](#name)
+* [Synopsis](#synopsis)
+* [Variables](#variables)
+* [Methods](#methods)
+    * [add_def_stats](#add_def_stats)
+    * [add_stats_config](#add_stats_config)
+    * [init](#init)
+    * [log](#log)
+* [Authors](#authors)
+* [Copyright and License](#copyright-and-license)
 
 Synopsis
 ========
-
 ```lua
-# nginx.conf
-
-http {
-    lua_package_path '/path/to/nginx-multi-disk/?.lua;;';
-
+    #set ngx_lua's environment variable:
+    lua_package_path '/path/to/lua-resty-stats/lib/?.lua;/path/to/lua-resty-stats/lib/?/init.lua;;';
+    # init the lua-resty-stats
     init_worker_by_lua '
-        local multidir = require("resty.multidir")
-        multidir.init({["/data/disk01"]=2, ["/data/disk02"]=1}, "/data/cache")
+        local stats = require("resty.stats")
+        -- add the default stats that named "stats_host"
+        stats.add_def_stats()
+        -- the general stats"s config
+        local update = {["$inc"]= {count=1, ["hour_cnt.$hour"]=1, ["status.$status"]=1, 
+                      ["req_time.all"]="$request_time", ["req_time.$hour"]="$request_time"}}
+        
+        -- stats by uri
+        stats.add_stats_config("stats_uri", 
+            {selector={date="$date",key="$uri"}, update=update,index_keys={"date", "key"}})
+        
+        -- stats by arg        
+        stats.add_stats_config("stats_arg", 
+            {selector={date="$date",key="$arg_client_type"}, update=update,index_keys={"date", "key"}})
+
+        -- stats by uri and args 
+        stats.add_stats_config("stats_uri_arg", 
+            {selector={date="$date",key="$uri?$arg_from"}, update=update,index_keys={"date", "key"}})
+
+        -- stats by http request header
+        stats.add_stats_config("stats_header_in", 
+            {selector={date="$date",key="city:$http_city"}, update=update,index_keys={"date", "key"}})
+        
+        -- stats by http response header
+        stats.add_stats_config("stats_header_out", 
+            {selector={date="$date",key="cache:$sent_http_cache"}, update=update,index_keys={"date", "key"}})
+
+        local mongo_cfg = {host="192.168.1.201", port=27017, dbname="ngx_stats"}
+        local flush_interval = 2 -- second
+        local retry_interval = 0.2 -- second
+        -- init stats and start flush timer.
+        stats.init(mongo_cfg, flush_interval, retry_interval)
     ';
-
     server {
-        ...
-        # Get file storage directory, write files to the disk use
-        location = /getsavedir {
-            set_by_lua $root_dir '
-                if ngx.var.arg_url == nil or ngx.var.arg_url == "" then
-                    return ""
-                end
-                local multidir = require "resty.multidir"
-                local url = ngx.var.arg_url or ""
-                local root_dir, x_cache = multidir.get_path_by_uri(url)
-                ngx.header["X-Cache"] = x_cache
-                ngx.log(ngx.INFO, "set root_dir:", root_dir)
-                return root_dir                
-            ';
-            root $root_dir;
+        listen       80;
+        server_name  localhost;
 
-            content_by_lua '                
-                local url = ngx.var.arg_url or ""
-                ngx.say(ngx.var.document_root .. url)
+        location /byuri {            
+            echo "byuri: $uri";
+            log_by_lua '
+                local stats = require("resty.stats")
+                stats.log("stats_uri")
+                stats.log("stats_host")
             ';
         }
 
-        # Download File
-        location / {
-            set_by_lua $root_dir '
-                local multidir = require "resty.multidir"
-                local root_dir, x_cache = multidir.get_path_by_uri(ngx.var.uri)
-                ngx.header["X-Cache"] = x_cache
-                ngx.log(ngx.INFO, "set root_dir:", root_dir)
-                return root_dir                
+        location /byarg {
+            echo_sleep 0.005;    
+            echo "login $args";
+            log_by_lua '
+                local stats = require("resty.stats")
+                stats.log("stats_arg")
             ';
-            root $root_dir;
+        }
+
+        location /byarg/404 {
+            request_stats statby_arg "clitype:$arg_client_type";        
+            return 404;
+            log_by_lua '
+                local stats = require("resty.stats")
+                stats.log("stats_arg")
+            ';
+        }
+
+        location /byuriarg {
+            echo "$uri?$args";
+            log_by_lua '
+                local stats = require("resty.stats")
+                stats.log("stats_uri_arg")
+            ';
+        }
+
+        location /byhttpheaderin {
+            echo "city: $http_city";
+            log_by_lua '
+                local stats = require("resty.stats")
+                stats.log("stats_header_in")
+            ';
+        }
+
+        location /byhttpheaderout/ {
+            proxy_pass http://127.0.0.1:82;
+            log_by_lua '
+                local stats = require("resty.stats")
+                stats.log("stats_header_out")
+            ';
         }
     }
-}
 
+    server {
+        listen       82;
+        server_name  localhost;
+            location /byhttpheaderout/hit {
+            add_header cache hit;
+            echo "cache: hit";
+        }
+        location /byhttpheaderout/miss {
+            add_header cache miss;
+            echo "cache: miss";
+        }
+    }
 ```
 
-Description
-===========
-The standard nginx default is not supported by multi directory (multi disk), you need to use the disk raid or other way to support. This library is to let nginx support multi directory and cache directory support. Multi directory selection using the consistency Hash. support weight settings. This module requires ngx_lua.
-
+# Variables
+* nginx_core module supports variable: http://nginx.org/en/docs/http/ngx_http_core_module.html#variables 
+* This module variables 
+     * date: current date in the format: 1970-09-28 
+     * time: current time in the format: 12:00:00 
+     * year: current year 
+     * month: current month 
+     * day: current date 
+     * hour: current hour 
+     * minute: current minute 
+     * second: current second 
 
 Methods
 =======
+To load this library,
 
-Load module
-
-* To use the library, the first to set the ngx_lua's environment variable:
-
-```lua
-lua_package_path '/path/to/nginx-multi-disk/?.lua;;';
+you need to specify this library's path in ngx_lua's lua_package_path directive. For example:
+```nginx
+http {
+   lua_package_path '/path/to/lua-resty-stats/lib/?.lua;/path/to/lua-resty-stats/lib/?/init.lua;;';
+}
 ```
 
-* Need to load the module with require to a local variable:
-
+you use require to load the library into a local Lua variable:
 ```lua
-local multidir = require("resty.multidir")
+local stats = require("resty.stats")
 ```
 
+
+[Back to TOC](#table-of-contents)
+add_def_stats
+---
+`syntax: stats.add_def_stats()`
+
+add the predefined stats configs that contains:
+```lua
+stats_name: stats_host
+stats_config:
+{
+    selector={date='$date',key='$host'}, 
+    update={['$inc']= {count=1, ['hour_cnt.$hour']=1, ['status.$status']=1, 
+            ['req_time.all']="$request_time", ['req_time.$hour']="$request_time"}},
+    index_keys={'date', 'key'}, index_options={}}
+}
+```
+After this method is called, when you used stats.log(stats_name) method, you can use these predefined statistics.
+
+add_stats_config
+---
+`syntax: stats.add_stats_config(stats_name, stats_config)`
+
+Add a custom statistical configuration item that contains stats_name and stats config.
+* `stats_name` is the name of the statistics, and also is the name of the mongodb's table. 
+The name will be used when calling the `stats.log(stats_name)` method.
+* `stats_config` is used to define the values of statistics. 
+ `stats_config` is a table that contains some fileds:
+    * `selector` a mongodb query statement. like: `{date="$date",key="$host"}`
+    * `update` a mongodb update statement. like: `{["$inc"]= {count=1, ["hour_cnt.$hour"]=1, ["status.$status"]=1, 
+                      ["req_time.all"]="$request_time", ["req_time.$hour"]="$request_time"}}`
+    * `index_keys` a table that contains all fields of the index.
+ 
+The `selector` and `update` configuration can use [variables](#variables).  <br/>
+Note that "$inc" is not a nginx variable, it's a mongodb's operator. 
 
 init
 ---
-* `syntax: multidir.init(multi_dir_table, cachedir)`
+`syntax: stats.init(mongo_cfg, flush_interval, retry_interval)`
 
-Initialize multi directory module
-
-* `multi_dir_table` 
-Specify the storage directory and directory weights. You can only give a directory, default weight is 1.
-    * initialization with weights:  `multidir.init({["dir01"]=weight, ["dir02"]=weight})`
-    * initialization without weights:  `multidir.init({"dir01""dir02"})`
-* `cachedir`
-Specify the cache directory, which can be empty. 
-After specifying the directory, when the HTTP request is coming, if the cache directory contains the request file, return the cache directory, and then read file date from the cache directory.
+Initialization statistical library.
+* `mongo_cfg` The mongodb configuration, contains fields:
+    * `host` mongodb's host
+    * `port` mongodb's port
+    * `dbname` mongodb's database name.
+* `flush_interval` flush data to the mongodb time interval, the time unit is seconds.
+* `retry_interval` the retry time interval on flush error,the time unit is seconds.
 
 
-Prerequisites
-=============
+log
+---
+`syntax: stats.log(stats_name)`
 
-* [LuaJIT](http://luajit.org) 2.0+
-* [ngx_lua](https://github.com/chaoslawful/lua-nginx-module) 0.8.10+
+Collect the specified(by stats_name) statistical information at the log phrase.<br/>
+* `stats_name`  is one statistical name that add by `stats.add_stats_config`. <br/>
+if the `stats_name` is nil, log method will collect all the statistics that have been configured.
+
+[Back to TOC](#table-of-contents)
+
 
 Authors
 =======
 
-* liuxiaojie (¡ı–°Ω‹)  <jie123108@163.com>
+Xiaojie Liu <jie123108@163.com>„ÄÇ
 
 [Back to TOC](#table-of-contents)
 
-Copyright & License
-===================
+Copyright and License
+=====================
 
-This module is licenced under the BSD license.
+This module is licensed under the BSD license.
 
-Copyright (C) 2014, by liuxiaojie (¡ı–°Ω‹)  <jie123108@163.com>
+Copyright (C) 2015, by Xiaojie Liu <jie123108@163.com>
 
 All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+[Back to TOC](#table-of-contents)
+
