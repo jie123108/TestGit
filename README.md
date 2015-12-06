@@ -127,7 +127,8 @@ Synopsis
     }
 ```
 
-# Variables
+Variables
+======
 * nginx_core module supports variable: http://nginx.org/en/docs/http/ngx_http_core_module.html#variables 
 * This module variables 
      * date: current date in the format: 1970-09-28 
