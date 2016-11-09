@@ -73,12 +73,12 @@ OR_CONTACT_ABOUT | 关于&关系我们 | OR_CONTACT_US, OR_ABOUT
 * 应用管理员首次登录后，系统会提示选择当前要管理的应用，请选择openresty,并点击保存。
 ![选择应用](imgs/select_app.png)<br/>
 
-* 登录后，点击右上角的<修改密码>，可以修改oradmin的密码：
-![oradmin修改密码](imgs/oradmin_change_pwd.png)<br/>
+* 登录后，点击右上角的<修改密码>，可以修改oradmin的密码：<br/>
+![oradmin修改密码](imgs/oradmin_change_pwd.png)
 
-* 在<权限管理>中，点击<添加>：
+* 在<权限管理>中，点击<添加>：<br/>
 ![权限添加](imgs/perm_add.png)
-依次添加权限，添加完成后，所有权限如下图：
+依次添加权限，添加完成后，所有权限如下图：<br/>
 ![权限列表](imgs/perm_list.png)
 
 * 在URL管理中，可以点击<添加>来添加一个新的URL，并设置其访问权限。<br/>
