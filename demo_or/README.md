@@ -9,9 +9,9 @@
 * [添加应用](#添加应用)
 * [添加普通用户](#添加普通用户)
 * [基本权限管理](#基本权限管理)
-* [OpenResty.org代理设置](#OpenResty.org代理设置)
+* [OpenResty代理设置](#OpenResty代理设置)
 * [测试用户](#测试用户)
-* 
+
 #### 权限规划
 openresty.org上页面非常多，这儿只列出一部分链接，并只创建部分权限。
 
@@ -94,7 +94,7 @@ OR_CONTACT_ABOUT | 关于&关系我们 | OR_CONTACT_US, OR_ABOUT
 
 下面一节介绍在反向代理中设置pms的Agent。
 
-#### OpenResty.org代理设置
+#### OpenResty代理设置
 pms agent需要设置在反向代理上，agent的设置如下。
 
 * 反向代理及pms Agent配置如下(可参见ngx-pms/conf/pms-agent-or.conf)：
