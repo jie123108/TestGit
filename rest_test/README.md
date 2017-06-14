@@ -84,7 +84,7 @@ httptest.run(blocks,"http://127.0.0.1:1234", globals())
 
 # 数据驱动用例语法说明
 
-rest_http_test 语法结构参考了`test:nginx`模块. 但是test:nginx只能使用perl编写, 并且只能用于nginx应用的测试. 所以用python实现一个类型的测试框架. 
+rest_http_test 语法结构参考了`test:nginx`模块. 但是test:nginx只能使用perl编写, 并且只能用于nginx应用的测试. 所以用python实现一个类似的测试框架. 一来Python使用人群更广泛, 二来测试框架也可用于测试其它非nginx类的Web程序.
 
 
 ## 基本语法
